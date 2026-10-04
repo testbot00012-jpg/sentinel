@@ -91,6 +91,7 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
             composable("risk") { RiskScreen(nav, viewModel) }
             composable("family") { FamilyProtectionScreen(nav, viewModel) }
             composable("history") { ScanHistoryScreen(nav, viewModel) }
+            composable("scan_report") { ResultScreen(nav, "Sentinel AI Scan Report", viewModel) }
             composable("settings_detail/{route}") { backStack ->
                 val route = backStack.arguments?.getString("route") ?: ""
                 val spec = ScreenRegistry.find(route)
@@ -320,6 +321,19 @@ fun CircularRiskGauge(
 @Composable
 private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
     val scoreState by vm.securityScore.collectAsState()
+    val telemetry by vm.telemetry.collectAsState()
+
+    val overall = scoreState.overallScore
+    val scoreColor = SentinelRiskColors.getColorForScore(overall)
+    val statusText = SentinelRiskColors.getStatusForScore(overall)
+    val deviceName = telemetry?.let { "${it.manufacturer} ${it.model}" } ?: "Your phone"
+
+    val badgeText = if (overall >= 80) "PROTECTED" else if (overall >= 60) "ATTENTION" else "AT RISK"
+    val badgeBg = if (overall >= 80) Color(0xFF0F2D1F) else if (overall >= 60) Color(0xFF2C2010) else Color(0xFF2D1212)
+    val badgeColor = scoreColor
+
+    val recCount = scoreState.recommendations.size
+    val topRec = scoreState.recommendations.firstOrNull() ?: "Device meets security baseline."
 
     LazyColumn(
         Modifier
@@ -327,27 +341,27 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        // Figma Header: "Good morning / Your phone is protected"
+        // Figma Header: "Good morning / [Device Name] is protected"
         item {
             FigmaHeader(
                 title = "Good morning",
-                subtitle = "Your phone is protected",
+                subtitle = "$deviceName is protected",
                 nav = nav,
                 showBell = true
             )
             Spacer(Modifier.height(2.dp))
         }
 
-        // Status badge: PROTECTED
+        // Status badge: Dynamic PROTECTED / ATTENTION / AT RISK
         item {
             Surface(
-                color = Color(0xFF0F2D1F),
+                color = badgeBg,
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f))
+                border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.5f))
             ) {
                 Text(
-                    "PROTECTED",
-                    color = Color(0xFF00E676),
+                    badgeText,
+                    color = badgeColor,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
@@ -357,7 +371,7 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
             Spacer(Modifier.height(14.dp))
         }
 
-        // Hero Card: Security Health
+        // Hero Card: Live Security Health
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -385,17 +399,18 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                         }
                         Spacer(Modifier.height(10.dp))
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text("91", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Black)
+                            Text("$overall", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Black)
                             Text("  / 100", color = Muted, fontSize = 15.sp, modifier = Modifier.padding(bottom = 6.dp))
                         }
                         Spacer(Modifier.height(4.dp))
-                        Text("No critical threats", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        val statusDesc = if (overall >= 90) "No critical threats" else if (overall >= 75) "Minor security improvements advised" else "Device hardening required"
+                        Text(statusDesc, color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
 
                     CircularRiskGauge(
-                        score = 91,
-                        statusText = "SAFE",
-                        statusColor = Color(0xFF00E676),
+                        score = overall,
+                        statusText = statusText,
+                        statusColor = scoreColor,
                         modifier = Modifier.size(82.dp)
                     )
                 }
@@ -443,7 +458,7 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
             Spacer(Modifier.height(18.dp))
         }
 
-        // 2 recommendations Card
+        // Live Recommendations Card
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -458,20 +473,20 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
-                            .background(Color(0xFF2C2010), RoundedCornerShape(8.dp)),
+                            .background(if (recCount > 0) Color(0xFF2C2010) else Color(0xFF0F2D1F), RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Default.WarningAmber,
+                            if (recCount > 0) Icons.Default.WarningAmber else Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = Color(0xFFF59E0B),
+                            tint = if (recCount > 0) Color(0xFFF59E0B) else Color(0xFF00E676),
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("2 recommendations", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("Review risky app permissions", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text("$recCount recommendations", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(topRec, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                         Spacer(Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -481,7 +496,7 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                             Surface(
                                 color = Color(0xFF1F2937),
                                 shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.clickable { nav.navigate("privacy") }
+                                modifier = Modifier.clickable { nav.navigate("device") }
                             ) {
                                 Text(
                                     "Review",
@@ -491,7 +506,7 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                                 )
                             }
-                            Text("Updated now", color = Muted, fontSize = 11.sp)
+                            Text("Real-time telemetry", color = Muted, fontSize = 11.sp)
                         }
                     }
                 }
@@ -535,179 +550,368 @@ private fun ProtectScreen(nav: NavHostController, vm: MainSecurityViewModel) {
 
 @Composable
 private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        item {
-            FigmaHeader(
-                title = "Scan center",
-                subtitle = "Analyze before you act",
-                nav = nav,
-                showBell = true
-            )
-            Spacer(Modifier.height(4.dp))
-        }
+    var activeDialog by remember { mutableStateOf<String?>(null) }
+    var inputQuery by remember { mutableStateOf("") }
+    var appFilterQuery by remember { mutableStateOf("") }
+    val installedApps = remember { vm.getInstalledApps() }
 
-        // Quick scan Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(18.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
+            item {
+                FigmaHeader(
+                    title = "Scan center",
+                    subtitle = "Analyze before you act",
+                    nav = nav,
+                    showBell = true
+                )
+                Spacer(Modifier.height(4.dp))
+            }
+
+            // Quick scan Card (Real Device Posture Scan)
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(46.dp)
-                            .background(Color(0xFF0B2530), RoundedCornerShape(12.dp))
-                            .border(1.dp, Cyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.CropFree, contentDescription = null, tint = Cyan, modifier = Modifier.size(24.dp))
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Quick scan", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Device + apps + network", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                        Spacer(Modifier.height(10.dp))
-                        Surface(
-                            color = Color(0xFF1F2937),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.clickable {
-                                vm.scanUrl("https://secure-pay.example")
-                                nav.navigate("url_protection")
-                            }
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .background(Color(0xFF0B2530), RoundedCornerShape(12.dp))
+                                .border(1.dp, Cyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                "START",
-                                color = Cyan,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                            )
+                            Icon(Icons.Default.CropFree, contentDescription = null, tint = Cyan, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Quick scan", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("Live hardware + OS + network audit", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Surface(
+                                color = Color(0xFF1F2937),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.clickable {
+                                    vm.runQuickDeviceScan()
+                                    nav.navigate("scan_report")
+                                }
+                            ) {
+                                Text(
+                                    "START AUDIT",
+                                    color = Cyan,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
                 }
+                Spacer(Modifier.height(20.dp))
             }
-            Spacer(Modifier.height(20.dp))
+
+            // Detection tools 2x4 grid
+            item {
+                Text("Detection tools", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(Modifier.height(10.dp))
+            }
+
+            // Row 1: Message & URL
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DetectionToolCard(
+                        title = "Message",
+                        subtitle = "SMS / WhatsApp",
+                        icon = Icons.Default.AutoAwesome,
+                        iconColor = Color(0xFFA855F7),
+                        onClick = {
+                            inputQuery = ""
+                            activeDialog = "MESSAGE"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DetectionToolCard(
+                        title = "URL",
+                        subtitle = "Phishing / links",
+                        icon = Icons.Default.Shield,
+                        iconColor = Cyan,
+                        onClick = {
+                            inputQuery = ""
+                            activeDialog = "URL"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
+            // Row 2: QR & Payment
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DetectionToolCard(
+                        title = "QR",
+                        subtitle = "Scan safely",
+                        icon = Icons.Default.QrCodeScanner,
+                        iconColor = Cyan,
+                        onClick = {
+                            inputQuery = ""
+                            activeDialog = "QR"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DetectionToolCard(
+                        title = "Payment",
+                        subtitle = "Verify UPI ID",
+                        icon = Icons.Default.FolderOpen,
+                        iconColor = Color(0xFFFBBF24),
+                        onClick = {
+                            inputQuery = ""
+                            activeDialog = "PAYMENT"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
+            // Row 3: APK / App & Call
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DetectionToolCard(
+                        title = "APK / App",
+                        subtitle = "Inspect installed",
+                        icon = Icons.Default.GridView,
+                        iconColor = Color(0xFFFF5252),
+                        onClick = {
+                            appFilterQuery = ""
+                            activeDialog = "APK"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DetectionToolCard(
+                        title = "Call",
+                        subtitle = "Caller risk",
+                        icon = Icons.Default.PhoneAndroid,
+                        iconColor = Color(0xFF60A5FA),
+                        onClick = {
+                            inputQuery = ""
+                            activeDialog = "CALL"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
+            // Row 4: Media & Investment
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DetectionToolCard(
+                        title = "Media",
+                        subtitle = "Deepfake",
+                        icon = Icons.Default.Star,
+                        iconColor = Cyan,
+                        onClick = { nav.navigate("feature/ai_media_scanner") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    DetectionToolCard(
+                        title = "Investment",
+                        subtitle = "Loan scams",
+                        icon = Icons.Default.WarningAmber,
+                        iconColor = Color(0xFFF59E0B),
+                        onClick = {
+                            inputQuery = ""
+                            activeDialog = "INVESTMENT"
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
 
-        // Detection tools 2x4 grid
-        item {
-            Text("Detection tools", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(Modifier.height(10.dp))
-        }
-
-        // Row 1: Message & URL
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetectionToolCard(
-                    title = "Message",
-                    subtitle = "SMS / WhatsApp",
-                    icon = Icons.Default.AutoAwesome,
-                    iconColor = Color(0xFFA855F7),
-                    onClick = {
-                        vm.scanMessage("Your account will be blocked unless you verify credentials immediately.")
-                        nav.navigate("message_result")
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                DetectionToolCard(
-                    title = "URL",
-                    subtitle = "Phishing / links",
-                    icon = Icons.Default.Shield,
-                    iconColor = Cyan,
-                    onClick = {
-                        vm.scanUrl("https://secure-pay.example")
-                        nav.navigate("url_protection")
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-        }
-
-        // Row 2: QR & Payment
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetectionToolCard(
-                    title = "QR",
-                    subtitle = "Scan safely",
-                    icon = Icons.Default.QrCodeScanner,
-                    iconColor = Cyan,
-                    onClick = {
-                        vm.scanQr("upi://pay?pa=merchant@upi&pn=Merchant&am=18500")
-                        nav.navigate("qr_payment")
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                DetectionToolCard(
-                    title = "Payment",
-                    subtitle = "Fake screenshot",
-                    icon = Icons.Default.FolderOpen,
-                    iconColor = Color(0xFFFBBF24),
-                    onClick = {
-                        vm.scanPayment("merchant@upi")
-                        nav.navigate("qr_payment")
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-        }
-
-        // Row 3: APK / App & Call
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetectionToolCard(
-                    title = "APK / App",
-                    subtitle = "Permissions",
-                    icon = Icons.Default.GridView,
-                    iconColor = Color(0xFFFF5252),
-                    onClick = { nav.navigate("apps") },
-                    modifier = Modifier.weight(1f)
-                )
-                DetectionToolCard(
-                    title = "Call",
-                    subtitle = "Caller risk",
-                    icon = Icons.Default.PhoneAndroid,
-                    iconColor = Color(0xFF60A5FA),
-                    onClick = { nav.navigate("feature/scam_call_identifier") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-        }
-
-        // Row 4: Media & Investment
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetectionToolCard(
-                    title = "Media",
-                    subtitle = "Deepfake",
-                    icon = Icons.Default.Star,
-                    iconColor = Cyan,
-                    onClick = { nav.navigate("feature/ai_media_scanner") },
-                    modifier = Modifier.weight(1f)
-                )
-                DetectionToolCard(
-                    title = "Investment",
-                    subtitle = "Loan scams",
-                    icon = Icons.Default.WarningAmber,
-                    iconColor = Color(0xFFF59E0B),
-                    onClick = { nav.navigate("feature/investment_fraud_analyzer") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+        // Interactive Scan Input Dialogs
+        activeDialog?.let { dialogType ->
+            AlertDialog(
+                onDismissRequest = { activeDialog = null },
+                containerColor = Color(0xFF10141B),
+                titleContentColor = Color.White,
+                textContentColor = Color(0xFFCBD5E1),
+                title = {
+                    Text(
+                        when (dialogType) {
+                            "MESSAGE" -> "Analyze Message (SMS / Chat)"
+                            "URL" -> "Scan Website Link / URL"
+                            "QR" -> "Analyze QR Code Payload"
+                            "PAYMENT" -> "Verify Payment Recipient (UPI)"
+                            "APK" -> "Select Installed App to Audit"
+                            "CALL" -> "Verify Caller Number"
+                            "INVESTMENT" -> "Analyze Investment / Loan Scheme"
+                            else -> "Security Scan"
+                        },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                },
+                text = {
+                    Column(Modifier.fillMaxWidth()) {
+                        if (dialogType == "APK") {
+                            Text(
+                                "Choose any application installed on your device to run a permission audit:",
+                                color = Muted,
+                                fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = appFilterQuery,
+                                onValueChange = { appFilterQuery = it },
+                                placeholder = { Text("Search installed apps...", color = Muted, fontSize = 12.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Cyan,
+                                    unfocusedBorderColor = Line,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            val filteredApps = installedApps.filter { it.contains(appFilterQuery, ignoreCase = true) }
+                            Box(modifier = Modifier.height(180.dp).fillMaxWidth()) {
+                                if (filteredApps.isEmpty()) {
+                                    Text("No apps match query", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+                                } else {
+                                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                        items(filteredApps.take(30)) { appName ->
+                                            Surface(
+                                                color = Color(0xFF161D27),
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = BorderStroke(1.dp, Line),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 3.dp)
+                                                    .clickable {
+                                                        vm.scanApk(appName)
+                                                        activeDialog = null
+                                                        nav.navigate("scan_report")
+                                                    }
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(Icons.Default.GridView, null, tint = Cyan, modifier = Modifier.size(16.dp))
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(appName, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            val hintText = when (dialogType) {
+                                "MESSAGE" -> "Type or paste message text to inspect for phishing, credential requests, or urgent pressure:"
+                                "URL" -> "Enter or paste website link to check for deceptive domains, SSL status, and malware:"
+                                "QR" -> "Enter or paste decoded QR payload, payment link, or data string:"
+                                "PAYMENT" -> "Enter UPI VPA or merchant ID (e.g., store@upi, 9876543210@paytm):"
+                                "CALL" -> "Enter caller phone number to verify reputation:"
+                                "INVESTMENT" -> "Paste crypto, loan, or investment proposal message:"
+                                else -> "Enter input for security audit:"
+                            }
+                            Text(hintText, color = Muted, fontSize = 12.sp)
+                            Spacer(Modifier.height(10.dp))
+                            OutlinedTextField(
+                                value = inputQuery,
+                                onValueChange = { inputQuery = it },
+                                placeholder = {
+                                    Text(
+                                        when (dialogType) {
+                                            "URL" -> "https://..."
+                                            "PAYMENT" -> "merchant@upi"
+                                            "CALL" -> "+91 98765 43210"
+                                            else -> "Paste text here..."
+                                        },
+                                        color = Muted,
+                                        fontSize = 13.sp
+                                    )
+                                },
+                                minLines = if (dialogType == "MESSAGE" || dialogType == "INVESTMENT") 3 else 1,
+                                maxLines = if (dialogType == "MESSAGE" || dialogType == "INVESTMENT") 5 else 2,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Cyan,
+                                    unfocusedBorderColor = Line,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (dialogType != "APK") {
+                        Button(
+                            onClick = {
+                                if (inputQuery.isNotBlank()) {
+                                    when (dialogType) {
+                                        "MESSAGE" -> {
+                                            vm.scanMessage(inputQuery)
+                                            activeDialog = null
+                                            nav.navigate("message_result")
+                                        }
+                                        "URL" -> {
+                                            vm.scanUrl(inputQuery)
+                                            activeDialog = null
+                                            nav.navigate("url_protection")
+                                        }
+                                        "QR" -> {
+                                            vm.scanQr(inputQuery)
+                                            activeDialog = null
+                                            nav.navigate("qr_payment")
+                                        }
+                                        "PAYMENT" -> {
+                                            vm.scanPayment(inputQuery)
+                                            activeDialog = null
+                                            nav.navigate("qr_payment")
+                                        }
+                                        "CALL" -> {
+                                            activeDialog = null
+                                            nav.navigate("feature/scam_call_identifier")
+                                        }
+                                        "INVESTMENT" -> {
+                                            vm.scanMessage(inputQuery)
+                                            activeDialog = null
+                                            nav.navigate("message_result")
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = inputQuery.isNotBlank(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Cyan, disabledContainerColor = Line),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Scan Now", color = if (inputQuery.isNotBlank()) Color.Black else Muted, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { activeDialog = null }) {
+                        Text("Cancel", color = Muted)
+                    }
+                }
+            )
         }
     }
 }
@@ -791,6 +995,10 @@ private fun MessageAnalysisScreen(
     result: SecurityResult?,
     vm: MainSecurityViewModel
 ) {
+    var inlineInput by remember { mutableStateOf("") }
+    var isInputExpanded by remember { mutableStateOf(result == null) }
+    val isScanning by vm.isScanning.collectAsState()
+
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -798,127 +1006,271 @@ private fun MessageAnalysisScreen(
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            FigmaSubHeader("Message analysis", "SMS / WhatsApp", nav)
+            FigmaSubHeader("Message analysis", "SMS / WhatsApp threat inspection", nav)
             Spacer(Modifier.height(4.dp))
         }
 
-        // HIGH RISK pill badge
-        item {
-            Surface(
-                color = Color(0xFF2D1212),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.7f))
-            ) {
-                Text(
-                    "HIGH RISK",
-                    color = Color(0xFFFF5252),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                )
+        // Inline input section when no scan or user requests re-scan
+        if (isInputExpanded || result == null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Cyan.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Analyze SMS or Chat Message", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Paste any suspicious SMS, OTP request, or WhatsApp text to inspect:", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = inlineInput,
+                            onValueChange = { inlineInput = it },
+                            placeholder = { Text("Paste message here (e.g. Your bank account is locked...)", color = Muted, fontSize = 12.sp) },
+                            minLines = 3,
+                            maxLines = 6,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Cyan,
+                                unfocusedBorderColor = Line,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    if (inlineInput.isNotBlank()) {
+                                        vm.scanMessage(inlineInput)
+                                        isInputExpanded = false
+                                    }
+                                },
+                                enabled = inlineInput.isNotBlank() && !isScanning,
+                                colors = ButtonDefaults.buttonColors(containerColor = Cyan, disabledContainerColor = Line),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                if (isScanning) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Analyzing...", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Text("Analyze Now", color = if (inlineInput.isNotBlank()) Color.Black else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            if (result != null) {
+                                TextButton(onClick = { isInputExpanded = false }) {
+                                    Text("Close", color = Muted, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
             }
-            Spacer(Modifier.height(14.dp))
         }
 
-        // Headline
-        item {
-            Text(
-                "\"Your account will be blocked...\"",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(14.dp))
-        }
+        result?.let { res ->
+            val scoreColor = SentinelRiskColors.getColorForScore(res.securityScore)
+            val riskBadgeText = res.riskLevel.label
+            val riskBadgeColor = when (res.riskLevel) {
+                RiskLevel.CRITICAL, RiskLevel.HIGH_RISK -> Color(0xFFFF5252)
+                RiskLevel.SUSPICIOUS -> Color(0xFFF59E0B)
+                RiskLevel.LOW_CONCERN -> Color(0xFF38BDF8)
+                else -> Color(0xFF00E676)
+            }
+            val riskBadgeBg = riskBadgeColor.copy(alpha = 0.16f)
 
-        // Sender & Detected signals Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Sender", color = Muted, fontSize = 11.sp)
-                    Text("+91 •••• 7284", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
-                    Spacer(Modifier.height(12.dp))
-                    Text("Detected signals", color = Muted, fontSize = 11.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SignalPill("Urgency", Color(0xFF2D1212), Color(0xFFFF5252))
-                        SignalPill("OTP request", Color(0xFF2C2010), Color(0xFFF59E0B))
-                        SignalPill("Look-alike", Color(0xFF2D1212), Color(0xFFFF5252))
+            // Risk level pill badge
+            item {
+                Surface(
+                    color = riskBadgeBg,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, riskBadgeColor.copy(alpha = 0.7f))
+                ) {
+                    Text(
+                        riskBadgeText,
+                        color = riskBadgeColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+
+            // Headline (Scanned message text preview)
+            item {
+                val preview = res.rawInputReference?.take(70) ?: "Scanned Message"
+                Text(
+                    "\"$preview${if ((res.rawInputReference?.length ?: 0) > 70) "..." else ""}\"",
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(14.dp))
+            }
+
+            // Target Content & Detected signals Card
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Input Content", color = Muted, fontSize = 11.sp)
+                        Text(
+                            res.rawInputReference ?: "No message text available",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Text("Detected signals (${res.signals.size})", color = Muted, fontSize = 11.sp)
+                        Spacer(Modifier.height(8.dp))
+                        if (res.signals.isEmpty()) {
+                            Text("✓ No coercive urgency, fake authority, or credential theft signals found.", color = Color(0xFF00E676), fontSize = 12.sp)
+                        } else {
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                res.signals.forEach { sig ->
+                                    val sigColor = when (sig.severity.uppercase()) {
+                                        "CRITICAL", "HIGH" -> Color(0xFFFF5252)
+                                        "MEDIUM" -> Color(0xFFF59E0B)
+                                        else -> Color(0xFF00E676)
+                                    }
+                                    SignalPill(sig.name, sigColor.copy(alpha = 0.16f), sigColor)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+
+            // Risk score
+            item {
+                Text("Risk score", color = Muted, fontSize = 12.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Text("${res.riskScore} / 100", color = riskBadgeColor, fontSize = 38.sp, fontWeight = FontWeight.Black)
+                    Text("Confidence ${(res.confidence * 100).toInt()}%", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+
+            // Why we flagged it
+            item {
+                Text("Why we flagged it", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (res.whyThisScore.isNotEmpty()) {
+                        res.whyThisScore.forEach { factor ->
+                            FlaggedItem(factor)
+                        }
+                    } else if (res.signals.isNotEmpty()) {
+                        res.signals.forEach { s ->
+                            FlaggedItem("${s.name}: ${s.description}")
+                        }
+                    } else {
+                        FlaggedItem(res.explanation)
+                    }
+                }
+                Spacer(Modifier.height(22.dp))
+            }
+
+            // Safe next action Card
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.5.dp, if (res.riskLevel == RiskLevel.SAFE) Color(0xFF00E676) else Color(0xFFFF5252)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = if (res.riskLevel == RiskLevel.SAFE) Color(0xFF00E676) else Color(0xFFFF5252),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Safe next action",
+                                color = if (res.riskLevel == RiskLevel.SAFE) Color(0xFF00E676) else Color(0xFFFF5252),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            val actionDesc = res.recommendedActions.firstOrNull() ?: if (res.riskLevel == RiskLevel.SAFE) "Safe to read. No credential theft detected." else "Do not reply, pay or share OTPs."
+                            Text(actionDesc, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Surface(
+                                    color = Color.Transparent,
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = BorderStroke(1.dp, Cyan),
+                                    modifier = Modifier.clickable { nav.navigate("history") }
+                                ) {
+                                    Text(
+                                        "View in History",
+                                        color = Cyan,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    )
+                                }
+                                Surface(
+                                    color = Color(0xFF1E2836),
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier.clickable { isInputExpanded = true }
+                                ) {
+                                    Text(
+                                        "Scan Another",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
-            Spacer(Modifier.height(18.dp))
-        }
-
-        // Risk score
-        item {
-            Text("Risk score", color = Muted, fontSize = 12.sp)
-            Spacer(Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Text("87 / 100", color = Color(0xFFFF5252), fontSize = 38.sp, fontWeight = FontWeight.Black)
-                Text("Confidence 91%", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
-            }
-            Spacer(Modifier.height(20.dp))
-        }
-
-        // Why we flagged it
-        item {
-            Text("Why we flagged it", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                FlaggedItem("Urgent account threat language")
-                FlaggedItem("Requests sensitive credentials")
-                FlaggedItem("Sender identity is unverified")
-            }
-            Spacer(Modifier.height(22.dp))
-        }
-
-        // Safe next action Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.5.dp, Color(0xFF00E676)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.Top
+        } ?: item {
+            if (!isInputExpanded) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = Color(0xFF00E676),
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Safe next action", color = Color(0xFF00E676), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text("Do not reply, pay or share OTPs.", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
-                        Spacer(Modifier.height(12.dp))
-                        Surface(
-                            color = Color.Transparent,
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, Cyan),
-                            modifier = Modifier.clickable { nav.navigate("history") }
+                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.AutoAwesome, null, tint = Cyan, modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Text("No Message Scanned Yet", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Enter or paste any SMS or chat message to analyze with Sentinel AI.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { isInputExpanded = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text(
-                                "Preserve evidence",
-                                color = Cyan,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                            )
+                            Text("Enter Message to Scan", color = Color.Black, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -933,6 +1285,10 @@ private fun UrlProtectionScreen(
     result: SecurityResult?,
     vm: MainSecurityViewModel
 ) {
+    var inlineUrlInput by remember { mutableStateOf("") }
+    var isInputExpanded by remember { mutableStateOf(result == null) }
+    val isScanning by vm.isScanning.collectAsState()
+
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -944,104 +1300,229 @@ private fun UrlProtectionScreen(
             Spacer(Modifier.height(4.dp))
         }
 
-        // URL display box
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CardBg, RoundedCornerShape(12.dp))
-                    .border(1.dp, Line, RoundedCornerShape(12.dp))
-                    .padding(14.dp)
-            ) {
-                Text(
-                    result?.rawInputReference ?: "https://secure-pay.example",
-                    color = Color(0xFFE2E8F0),
-                    fontSize = 13.sp
-                )
+        // Inline input section when no scan or user requests re-scan
+        if (isInputExpanded || result == null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Cyan.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Scan Website Link / URL", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Enter any suspicious website link to check SSL, domain age, and phishing threat:", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = inlineUrlInput,
+                            onValueChange = { inlineUrlInput = it },
+                            placeholder = { Text("https://example.com/...", color = Muted, fontSize = 12.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Cyan,
+                                unfocusedBorderColor = Line,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    if (inlineUrlInput.isNotBlank()) {
+                                        vm.scanUrl(inlineUrlInput)
+                                        isInputExpanded = false
+                                    }
+                                },
+                                enabled = inlineUrlInput.isNotBlank() && !isScanning,
+                                colors = ButtonDefaults.buttonColors(containerColor = Cyan, disabledContainerColor = Line),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                if (isScanning) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Scanning...", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Text("Scan URL", color = if (inlineUrlInput.isNotBlank()) Color.Black else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            if (result != null) {
+                                TextButton(onClick = { isInputExpanded = false }) {
+                                    Text("Close", color = Muted, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
             }
-            Spacer(Modifier.height(12.dp))
         }
 
-        // HIGH RISK pill badge
-        item {
-            Surface(
-                color = Color(0xFF2D1212),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.7f))
-            ) {
-                Text(
-                    "HIGH RISK",
-                    color = Color(0xFFFF5252),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                )
+        result?.let { res ->
+            val scannedUrl = res.rawInputReference ?: "Unknown URL"
+            val isSafe = res.riskLevel == RiskLevel.SAFE || res.riskLevel == RiskLevel.LOW_CONCERN
+            val riskBadgeColor = when (res.riskLevel) {
+                RiskLevel.CRITICAL, RiskLevel.HIGH_RISK -> Color(0xFFFF5252)
+                RiskLevel.SUSPICIOUS -> Color(0xFFF59E0B)
+                RiskLevel.LOW_CONCERN -> Color(0xFF38BDF8)
+                else -> Color(0xFF00E676)
             }
-            Spacer(Modifier.height(14.dp))
-        }
 
-        // Suspicious destination Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
-                    Icon(
-                        Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = Color(0xFFFF5252),
-                        modifier = Modifier.size(24.dp)
+            // URL display box
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CardBg, RoundedCornerShape(12.dp))
+                        .border(1.dp, Line, RoundedCornerShape(12.dp))
+                        .padding(14.dp)
+                ) {
+                    Text(
+                        scannedUrl,
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 13.sp
                     )
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Suspicious destination", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text("Look-alike domain + redirect chain", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                        Spacer(Modifier.height(6.dp))
-                        Text("3 risk signals", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Risk pill badge
+            item {
+                Surface(
+                    color = riskBadgeColor.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, riskBadgeColor.copy(alpha = 0.7f))
+                ) {
+                    Text(
+                        res.riskLevel.label,
+                        color = riskBadgeColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+
+            // Suspicious / Safe destination Card
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+                        Icon(
+                            if (isSafe) Icons.Default.CheckCircle else Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                if (isSafe) "Verified Destination" else "Suspicious Destination",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            Text(
+                                res.explanation,
+                                color = Muted,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "${res.signals.size} risk signals identified",
+                                color = riskBadgeColor,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+
+            // Evidence section
+            item {
+                Text("Evidence", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val isHttps = scannedUrl.startsWith("https://", ignoreCase = true)
+                        EvidenceRow("TLS Encryption", if (isHttps) "HTTPS (Secured)" else "HTTP (Insecure Plaintext)", if (isHttps) Color(0xFF00E676) else Color(0xFFFF5252))
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+                        EvidenceRow("Threat Probability", "${(res.threatProbability * 100).toInt()}%", if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252))
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+                        EvidenceRow("Security Engine", "${res.modelName} (v${res.modelVersion})", Cyan)
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+                        EvidenceRow("Security Score", "${res.securityScore} / 100", SentinelRiskColors.getColorForScore(res.securityScore))
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+
+            // Action button
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = { nav.popBackStack() },
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252)),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp)
+                    ) {
+                        Text(
+                            if (isSafe) "Destination Verified Safe" else "Do not open this link",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Button(
+                        onClick = { isInputExpanded = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2836)),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.height(50.dp)
+                    ) {
+                        Text("New URL", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
-            Spacer(Modifier.height(18.dp))
-        }
-
-        // Evidence section
-        item {
-            Text("Evidence", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    EvidenceRow("Domain age", "2 days", Color(0xFFFBBF24))
-                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
-                    EvidenceRow("Redirects", "3 hops", Color(0xFFFBBF24))
-                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
-                    EvidenceRow("Credential pattern", "Detected", Color(0xFFFF5252))
-                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
-                    EvidenceRow("TLS", "Valid", Color(0xFF00E676))
+        } ?: item {
+            if (!isInputExpanded) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Shield, null, tint = Cyan, modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Text("No Link Scanned Yet", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Enter or paste any URL to verify against phishing and credential theft.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { isInputExpanded = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Enter URL to Scan", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-            }
-            Spacer(Modifier.height(24.dp))
-        }
-
-        // Do not open this link button
-        item {
-            Button(
-                onClick = { nav.popBackStack() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Text("Do not open this link", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
     }
@@ -1053,6 +1534,10 @@ private fun QrPaymentScreen(
     result: SecurityResult?,
     vm: MainSecurityViewModel
 ) {
+    var inlineQrInput by remember { mutableStateOf("") }
+    var isInputExpanded by remember { mutableStateOf(result == null) }
+    val isScanning by vm.isScanning.collectAsState()
+
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -1064,104 +1549,220 @@ private fun QrPaymentScreen(
             Spacer(Modifier.height(4.dp))
         }
 
-        // QR decoded Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        // Inline input section when no scan or user requests re-scan
+        if (isInputExpanded || result == null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Cyan.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .background(Color(0xFF0B1925), RoundedCornerShape(12.dp))
-                            .border(1.dp, Cyan.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.CropFree, contentDescription = null, tint = Cyan, modifier = Modifier.size(32.dp))
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Analyze QR / UPI Payment", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Paste decoded QR payload, UPI link (upi://pay?pa=...), or VPA to verify recipient:", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = inlineQrInput,
+                            onValueChange = { inlineQrInput = it },
+                            placeholder = { Text("e.g. upi://pay?pa=store@upi&pn=Store&am=500", color = Muted, fontSize = 12.sp) },
+                            minLines = 2,
+                            maxLines = 4,
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("QR decoded", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Surface(
-                                color = Color(0xFF2C2010),
-                                border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                                shape = RoundedCornerShape(6.dp)
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Cyan,
+                                unfocusedBorderColor = Line,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            )
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    if (inlineQrInput.isNotBlank()) {
+                                        vm.scanQr(inlineQrInput)
+                                        isInputExpanded = false
+                                    }
+                                },
+                                enabled = inlineQrInput.isNotBlank() && !isScanning,
+                                colors = ButtonDefaults.buttonColors(containerColor = Cyan, disabledContainerColor = Line),
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Text(
-                                    "SUSPICIOUS",
-                                    color = Color(0xFFF59E0B),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
+                                if (isScanning) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Analyzing...", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Text("Verify QR / Payment", color = if (inlineQrInput.isNotBlank()) Color.Black else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            if (result != null) {
+                                TextButton(onClick = { isInputExpanded = false }) {
+                                    Text("Close", color = Muted, fontSize = 12.sp)
+                                }
                             }
                         }
-                        Spacer(Modifier.height(6.dp))
-                        Text("Recipient", color = Muted, fontSize = 11.sp)
-                        Text("merchant@upi", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Amount", color = Muted, fontSize = 11.sp)
-                        Text("₹18,500", color = Color(0xFFFBBF24), fontWeight = FontWeight.Black, fontSize = 24.sp)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+        }
+
+        result?.let { res ->
+            val payload = res.rawInputReference ?: ""
+            // Parse UPI parameters if present
+            var payeeVpa = "Direct Payload"
+            var amountStr = "Unspecified"
+            if (payload.contains("pa=", ignoreCase = true)) {
+                val paMatch = Regex("pa=([^&]+)", RegexOption.IGNORE_CASE).find(payload)
+                if (paMatch != null) payeeVpa = paMatch.groupValues[1]
+            } else if (payload.isNotBlank()) {
+                payeeVpa = payload.take(40)
+            }
+            if (payload.contains("am=", ignoreCase = true)) {
+                val amMatch = Regex("am=([^&]+)", RegexOption.IGNORE_CASE).find(payload)
+                if (amMatch != null) amountStr = "₹${amMatch.groupValues[1]}"
+            }
+
+            val isSafe = res.riskLevel == RiskLevel.SAFE
+            val riskBadgeColor = when (res.riskLevel) {
+                RiskLevel.CRITICAL, RiskLevel.HIGH_RISK -> Color(0xFFFF5252)
+                RiskLevel.SUSPICIOUS -> Color(0xFFF59E0B)
+                RiskLevel.LOW_CONCERN -> Color(0xFF38BDF8)
+                else -> Color(0xFF00E676)
+            }
+
+            // QR decoded Card
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(Color(0xFF0B1925), RoundedCornerShape(12.dp))
+                                .border(1.dp, Cyan.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CropFree, contentDescription = null, tint = Cyan, modifier = Modifier.size(32.dp))
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("QR decoded", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Surface(
+                                    color = riskBadgeColor.copy(alpha = 0.16f),
+                                    border = BorderStroke(1.dp, riskBadgeColor),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        res.riskLevel.label,
+                                        color = riskBadgeColor,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text("Recipient", color = Muted, fontSize = 11.sp)
+                            Text(payeeVpa, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text("Amount", color = Muted, fontSize = 11.sp)
+                            Text(amountStr, color = Color(0xFFFBBF24), fontWeight = FontWeight.Black, fontSize = 22.sp)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+
+            // Before you pay section
+            item {
+                Text("Before you pay", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CheckshieldItem("Recipient ($payeeVpa) matches your intent")
+                        CheckshieldItem("Amount ($amountStr) matches what you expect")
+                        CheckshieldItem("You NEVER need to enter your PIN to receive money")
+                        if (res.signals.isNotEmpty()) {
+                            res.signals.forEach { sig ->
+                                CheckshieldItem("Signal: ${sig.name} - ${sig.description}")
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+
+            // Button
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = { isInputExpanded = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10151E)),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, Cyan),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                    ) {
+                        Text("Scan Another Payment", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "CyberShield never controls your bank transaction.",
+                    color = Muted,
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        } ?: item {
+            if (!isInputExpanded) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.QrCodeScanner, null, tint = Cyan, modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Text("No QR / Payment Scanned Yet", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Enter or paste any UPI payload, QR string, or merchant ID to verify safety.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = { isInputExpanded = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Enter Payment Payload", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
-            Spacer(Modifier.height(18.dp))
-        }
-
-        // Before you pay section
-        item {
-            Text("Before you pay", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CheckshieldItem("Recipient matches your intent")
-                    CheckshieldItem("Amount matches what you expect")
-                    CheckshieldItem("No urgent or coercive instruction")
-                }
-            }
-            Spacer(Modifier.height(20.dp))
-        }
-
-        // Button
-        item {
-            Button(
-                onClick = { /* review action */ },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10151E)),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                Text("Review in your payment app", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "CyberShield never controls your bank transaction.",
-                color = Muted,
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
         }
     }
 }
@@ -2095,6 +2696,18 @@ private fun NetworkGuardScreen(nav: NavHostController, vm: MainSecurityViewModel
 
 @Composable
 private fun RiskScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    val scoreState by vm.securityScore.collectAsState()
+    val telemetry by vm.telemetry.collectAsState()
+
+    val overall = scoreState.overallScore
+    val scoreColor = SentinelRiskColors.getColorForScore(overall)
+    val statusText = SentinelRiskColors.getStatusForScore(overall)
+
+    val devRisk = (100 - (scoreState.breakdown["Device Posture"] ?: 95)).coerceAtLeast(0)
+    val appRisk = (100 - (scoreState.breakdown["App Security"] ?: 90)).coerceAtLeast(0)
+    val permRisk = (100 - (scoreState.breakdown["Permissions"] ?: 85)).coerceAtLeast(0)
+    val netRisk = (100 - (scoreState.breakdown["Network"] ?: 90)).coerceAtLeast(0)
+
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -2119,18 +2732,18 @@ private fun RiskScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CircularRiskGauge(
-                        score = 82,
-                        statusText = "LOW RISK",
-                        statusColor = Color(0xFF00E676),
+                        score = overall,
+                        statusText = statusText,
+                        statusColor = scoreColor,
                         modifier = Modifier.size(84.dp)
                     )
                     Spacer(Modifier.width(20.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("30-day trend", color = Muted, fontSize = 11.sp)
-                        Text("↓ 12%", color = Color(0xFF00E676), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text("Audit status", color = Muted, fontSize = 11.sp)
+                        Text(if (overall >= 80) "Optimal Health" else "Action Recommended", color = scoreColor, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(top = 2.dp))
                         Spacer(Modifier.height(6.dp))
-                        Text("2 risky apps", color = Color(0xFFE2E8F0), fontSize = 12.sp)
-                        Text("1 blocked URL", color = Color(0xFFE2E8F0), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Text("${telemetry?.installedAppCount ?: 0} audited apps", color = Color(0xFFE2E8F0), fontSize = 12.sp)
+                        Text("${scoreState.recommendations.size} live action items", color = Color(0xFFE2E8F0), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                     }
                 }
             }
@@ -2148,10 +2761,10 @@ private fun RiskScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    RiskContributorRow("Apps", 0.31f, "31%", Color(0xFFC084FC))
-                    RiskContributorRow("Phishing exposure", 0.22f, "22%", Color(0xFFF87171))
-                    RiskContributorRow("Account hygiene", 0.15f, "15%", Color(0xFFFBBF24))
-                    RiskContributorRow("Network", 0.08f, "8%", Color(0xFF38BDF8))
+                    RiskContributorRow("Device Posture & Root Check", devRisk / 100f, "$devRisk%", Color(0xFFC084FC))
+                    RiskContributorRow("Installed Application Security", appRisk / 100f, "$appRisk%", Color(0xFFF87171))
+                    RiskContributorRow("Permission Exposure & Access", permRisk / 100f, "$permRisk%", Color(0xFFFBBF24))
+                    RiskContributorRow("Network Transport & Wi-Fi", netRisk / 100f, "$netRisk%", Color(0xFF38BDF8))
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -2168,9 +2781,13 @@ private fun RiskScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CheckshieldItem("Review app permissions")
-                    CheckshieldItem("Enable security updates")
-                    CheckshieldItem("Complete privacy checkup")
+                    if (scoreState.recommendations.isEmpty()) {
+                        CheckshieldItem("Device meets standard security baseline")
+                    } else {
+                        scoreState.recommendations.forEach { rec ->
+                            CheckshieldItem(rec)
+                        }
+                    }
                 }
             }
         }
@@ -2341,6 +2958,20 @@ private fun ProtectedMemberCard(name: String, status: String, statusColor: Color
 @Composable
 private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel) {
     var selectedFilter by remember { mutableStateOf("ALL") }
+    var searchQuery by remember { mutableStateOf("") }
+    val history by vm.scanHistory.collectAsState()
+
+    val filteredHistory = history.filter { item ->
+        val matchesFilter = when (selectedFilter) {
+            "HIGH RISK" -> item.riskLevel == RiskLevel.HIGH_RISK || item.riskLevel == RiskLevel.CRITICAL
+            "SAFE" -> item.riskLevel == RiskLevel.SAFE
+            else -> true
+        }
+        val matchesSearch = searchQuery.isBlank() ||
+                (item.rawInputReference?.contains(searchQuery, ignoreCase = true) == true) ||
+                item.scannerType.contains(searchQuery, ignoreCase = true)
+        matchesFilter && matchesSearch
+    }
 
     LazyColumn(
         Modifier
@@ -2365,12 +2996,23 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     .fillMaxWidth()
                     .background(CardBg, RoundedCornerShape(12.dp))
                     .border(1.dp, Line, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Search, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text("Search scans, URLs, incidents...", color = Muted, fontSize = 13.sp)
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                        modifier = Modifier.weight(1f).padding(vertical = 10.dp),
+                        decorationBox = { inner ->
+                            if (searchQuery.isEmpty()) {
+                                Text("Search scans, URLs, incidents...", color = Muted, fontSize = 13.sp)
+                            }
+                            inner()
+                        }
+                    )
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -2386,7 +3028,7 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     modifier = Modifier.clickable { selectedFilter = "ALL" }
                 ) {
                     Text(
-                        "ALL",
+                        "ALL (${history.size})",
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -2395,7 +3037,7 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                 }
 
                 Surface(
-                    color = Color(0xFF2D1212),
+                    color = if (selectedFilter == "HIGH RISK") Color(0xFF2D1212) else Color.Transparent,
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.6f)),
                     modifier = Modifier.clickable { selectedFilter = "HIGH RISK" }
@@ -2403,6 +3045,21 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     Text(
                         "HIGH RISK",
                         color = Color(0xFFFF5252),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    )
+                }
+
+                Surface(
+                    color = if (selectedFilter == "SAFE") Color(0xFF0F2D1F) else Color.Transparent,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.6f)),
+                    modifier = Modifier.clickable { selectedFilter = "SAFE" }
+                ) {
+                    Text(
+                        "SAFE",
+                        color = Color(0xFF00E676),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
@@ -2416,71 +3073,80 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
         item {
             Text("Recent activity", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(Modifier.height(10.dp))
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    // Item 1: Message scan
-                    HistoryItemRow(
-                        title = "Message scan",
-                        time = "09:12",
-                        status = "HIGH RISK",
-                        statusColor = Color(0xFFFF5252),
-                        statusBg = Color(0xFF2D1212),
-                        icon = Icons.Default.AccessTime,
-                        onClick = { nav.navigate("message_result") }
-                    )
-                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
-
-                    // Item 2: Wi-Fi check
-                    HistoryItemRow(
-                        title = "Wi-Fi check",
-                        time = "08:41",
-                        status = "SAFE",
-                        statusColor = Color(0xFF00E676),
-                        statusBg = Color(0xFF0F2D1F),
-                        icon = Icons.Default.Wifi,
-                        onClick = { nav.navigate("network") }
-                    )
-                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
-
-                    // Item 3: APK analysis
-                    HistoryItemRow(
-                        title = "APK analysis",
-                        time = "Yesterday",
-                        status = "SUSPICIOUS",
-                        statusColor = Color(0xFFFBBF24),
-                        statusBg = Color(0xFF2C2010),
-                        icon = Icons.Default.GridView,
-                        onClick = { nav.navigate("apps") }
-                    )
-                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
-
-                    // Item 4: QR scan
-                    HistoryItemRow(
-                        title = "QR scan",
-                        time = "Yesterday",
-                        status = "SAFE",
-                        statusColor = Color(0xFF00E676),
-                        statusBg = Color(0xFF0F2D1F),
-                        icon = Icons.Default.QrCodeScanner,
-                        onClick = { nav.navigate("qr_payment") }
-                    )
-                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
-
-                    // Item 5: Payment screenshot
-                    HistoryItemRow(
-                        title = "Payment screenshot",
-                        time = "Sep 30",
-                        status = "HIGH RISK",
-                        statusColor = Color(0xFFFF5252),
-                        statusBg = Color(0xFF2D1212),
-                        icon = Icons.Default.Payments,
-                        onClick = { nav.navigate("qr_payment") }
-                    )
+            if (filteredHistory.isEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.CropFree, null, tint = Cyan, modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Text("No Scans in History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Scan an SMS, URL link, QR payload, or run a live device posture audit to log verified security evidence.",
+                            color = Muted,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 14.dp)
+                        )
+                        Button(
+                            onClick = {
+                                vm.runQuickDeviceScan()
+                                nav.navigate("scan_report")
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Run Live Device Audit", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                }
+            } else {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        filteredHistory.forEachIndexed { index, scan ->
+                            val sColor = SentinelRiskColors.getColorForScore(scan.securityScore)
+                            val sBg = sColor.copy(alpha = 0.16f)
+                            val icon = when {
+                                scan.scannerType.contains("MESSAGE", true) -> Icons.Default.AutoAwesome
+                                scan.scannerType.contains("URL", true) -> Icons.Default.Shield
+                                scan.scannerType.contains("QR", true) -> Icons.Default.QrCodeScanner
+                                scan.scannerType.contains("PAYMENT", true) -> Icons.Default.Payments
+                                scan.scannerType.contains("DEVICE", true) -> Icons.Default.PhoneAndroid
+                                else -> Icons.Default.GridView
+                            }
+                            val timeFormatted = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(scan.timestamp))
+                            HistoryItemRow(
+                                title = scan.rawInputReference?.take(28) ?: scan.scannerType.replace("_", " "),
+                                time = timeFormatted,
+                                status = scan.riskLevel.label,
+                                statusColor = sColor,
+                                statusBg = sBg,
+                                icon = icon,
+                                onClick = {
+                                    when {
+                                        scan.scannerType.contains("MESSAGE", true) -> nav.navigate("message_result")
+                                        scan.scannerType.contains("URL", true) -> nav.navigate("url_protection")
+                                        scan.scannerType.contains("QR", true) || scan.scannerType.contains("PAYMENT", true) -> nav.navigate("qr_payment")
+                                        else -> nav.navigate("scan_report")
+                                    }
+                                }
+                            )
+                            if (index < filteredHistory.size - 1) {
+                                HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+                            }
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(18.dp))

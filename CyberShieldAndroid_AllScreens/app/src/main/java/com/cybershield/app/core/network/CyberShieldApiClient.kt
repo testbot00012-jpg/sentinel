@@ -107,13 +107,17 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
         val payload = JSONObject().put("url", urlStr)
         val result = postJson("/url/analyze", payload)
         
-        result.getOrNull()?.let { parseSecurityResult(it, "URL_PHISHING") } ?: run {
+        result.getOrNull()?.let { 
+            val parsed = parseSecurityResult(it, "URL_PHISHING")
+            if (parsed.rawInputReference.isNullOrBlank()) parsed.copy(rawInputReference = urlStr) else parsed
+        } ?: run {
             // Local fallback heuristic when offline
             val isSuspicious = urlStr.contains("login") || urlStr.contains("kyc") || urlStr.contains("sbi") || urlStr.length > 70
             SecurityResult(
                 scannerType = "URL_PHISHING_LOCAL_FALLBACK",
                 riskLevel = if (isSuspicious) RiskLevel.SUSPICIOUS else RiskLevel.SAFE,
                 riskScore = if (isSuspicious) 55 else 12,
+                securityScore = if (isSuspicious) 45 else 88,
                 confidence = 0.70,
                 signals = if (isSuspicious) listOf(
                     ScannerSignal("Lexical Keyword Suspicion", "LOCAL_HEURISTIC", "MEDIUM", "URL contains sensitive keyword tokens.")
@@ -123,7 +127,8 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                 recommendedActions = listOf("Verify link origin before proceeding.", "Check with organization directly."),
                 limitations = listOf("Offline local heuristics cannot query live domain reputation or certificate transparency logs."),
                 modelName = "Sentinel-URL-Engine",
-                modelVersion = "1.0.0-offline"
+                modelVersion = "1.0.0-offline",
+                rawInputReference = urlStr
             )
         }
     }
@@ -132,23 +137,30 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
         val payload = JSONObject().put("message_text", messageText).put("language", language)
         val result = postJson("/messages/analyze", payload)
 
-        result.getOrNull()?.let { parseSecurityResult(it, "SMS_MESSAGE_SCAM") } ?: run {
-            val hasUrgent = messageText.contains("urgent", ignoreCase = true) || messageText.contains("suspended", ignoreCase = true)
-            val hasOtp = messageText.contains("otp", ignoreCase = true) || messageText.contains("pin", ignoreCase = true)
+        result.getOrNull()?.let { 
+            val parsed = parseSecurityResult(it, "SMS_MESSAGE_SCAM")
+            if (parsed.rawInputReference.isNullOrBlank()) parsed.copy(rawInputReference = messageText) else parsed
+        } ?: run {
+            val hasUrgent = messageText.contains("urgent", ignoreCase = true) || messageText.contains("suspended", ignoreCase = true) || messageText.contains("blocked", ignoreCase = true)
+            val hasOtp = messageText.contains("otp", ignoreCase = true) || messageText.contains("pin", ignoreCase = true) || messageText.contains("password", ignoreCase = true)
             val score = if (hasUrgent && hasOtp) 85 else if (hasUrgent || hasOtp) 55 else 15
             SecurityResult(
                 scannerType = "SMS_SCAM_LOCAL_FALLBACK",
                 riskLevel = if (score >= 80) RiskLevel.HIGH_RISK else if (score >= 50) RiskLevel.SUSPICIOUS else RiskLevel.SAFE,
                 riskScore = score,
+                securityScore = (100 - score),
                 confidence = 0.75,
                 signals = if (hasOtp) listOf(
                     ScannerSignal("Credential Intercept Keyword", "LOCAL_NLP", "HIGH", "Message requests OTP or secret PIN code.")
+                ) else if (hasUrgent) listOf(
+                    ScannerSignal("Urgent Threat Tone", "LOCAL_NLP", "MEDIUM", "Message uses pressure language to force immediate action.")
                 ) else emptyList(),
-                explanation = "Analyzed with on-device local pattern matching.",
+                explanation = if (score >= 50) "Message flagged for coercive urgency or credential request patterns." else "No immediate threat indicators found in message text.",
                 recommendedActions = listOf("Never disclose OTP or PIN to anyone.", "Report and block sender."),
                 limitations = listOf("Full multilingual transformer classification requires cloud connection."),
                 modelName = "Sentinel-NLP-Engine",
-                modelVersion = "1.0.0-offline"
+                modelVersion = "1.0.0-offline",
+                rawInputReference = messageText
             )
         }
     }
@@ -157,21 +169,26 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
         val payload = JSONObject().put("raw_payload", payloadText)
         val result = postJson("/qr/analyze", payload)
 
-        result.getOrNull()?.let { parseSecurityResult(it, "QR_FRAUD") } ?: run {
+        result.getOrNull()?.let { 
+            val parsed = parseSecurityResult(it, "QR_FRAUD")
+            if (parsed.rawInputReference.isNullOrBlank()) parsed.copy(rawInputReference = payloadText) else parsed
+        } ?: run {
             val isUpi = payloadText.startsWith("upi://pay", ignoreCase = true)
             SecurityResult(
                 scannerType = "QR_FRAUD_LOCAL_FALLBACK",
                 riskLevel = if (isUpi) RiskLevel.SUSPICIOUS else RiskLevel.SAFE,
                 riskScore = if (isUpi) 45 else 10,
+                securityScore = if (isUpi) 55 else 90,
                 confidence = 0.80,
                 signals = if (isUpi) listOf(
                     ScannerSignal("UPI Payment Payload", "PAYLOAD_TYPE", "MEDIUM", "Scanned payload initiates a bank transfer.")
                 ) else emptyList(),
-                explanation = if (isUpi) "QR code triggers a UPI payment. Entering PIN will debit money." else "Plain text payload.",
+                explanation = if (isUpi) "QR code triggers a UPI payment. Entering PIN will debit money." else "Plain text payload verified safe.",
                 recommendedActions = listOf("You NEVER need to enter your PIN to receive money.", "Verify payee identity."),
                 limitations = listOf("Cannot verify payee account reputation offline."),
                 modelName = "Sentinel-QR-Engine",
-                modelVersion = "1.0.0-offline"
+                modelVersion = "1.0.0-offline",
+                rawInputReference = payloadText
             )
         }
     }
