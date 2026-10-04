@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,12 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cybershield.app.core.model.RiskLevel
 import com.cybershield.app.core.model.SecurityResult
@@ -42,24 +45,33 @@ private val Line = Color(0xFF252D39)
 @Composable
 fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
     val nav = rememberNavController()
+    val navBackStackEntry by nav.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val hideBottomBarRoutes = setOf("splash", "login", "register", "forgot-password")
+    val showBottomBar = currentRoute !in hideBottomBarRoutes
+
     Scaffold(
         containerColor = DarkBg,
-        bottomBar = { BottomBar(nav) }
+        bottomBar = {
+            if (showBottomBar) {
+                BottomBar(nav)
+            }
+        }
     ) { padding ->
         NavHost(
             navController = nav,
-            startDestination = "home",
-            modifier = Modifier.padding(padding)
+            startDestination = "splash",
+            modifier = Modifier.padding(if (showBottomBar) padding else PaddingValues(0.dp))
         ) {
+            composable("splash") { SplashScreen(nav) }
+            composable("login") { LoginScreen(nav, viewModel) }
+            composable("register") { RegisterScreen(nav, viewModel) }
+            composable("forgot-password") { ForgotPasswordScreen(nav) }
             composable("home") { HomeScreen(nav, viewModel) }
             composable("protect") { ProtectScreen(nav) }
             composable("scan") { ScanCenterScreen(nav, viewModel) }
             composable("alerts") { AlertCenterScreen(nav, viewModel) }
             composable("settings") { SettingsScreen(nav, viewModel) }
-            composable("login") { AuthScreen(nav, "Login", "Access your Sentinel AI account", viewModel) }
-            composable("register") { AuthScreen(nav, "Register", "Create your protected profile with Sentinel AI", viewModel) }
-            composable("forgot-password") { AuthScreen(nav, "Reset Password", "Enter email to receive recovery instructions", viewModel) }
-            composable("splash") { SplashScreen(nav) }
             composable("device") { DeviceHealthScreen(nav, viewModel) }
             composable("apps") { AppsManagerScreen(nav, viewModel) }
             composable("privacy") { PrivacyCenterScreen(nav, viewModel) }
@@ -1426,104 +1438,619 @@ private fun getDetailedFeatureExplanation(spec: ScreenSpec, t: com.cybershield.a
 @Composable
 private fun SplashScreen(nav: NavHostController) {
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(600)
-        nav.navigate("home") { popUpTo("splash") { inclusive = true } }
+        kotlinx.coroutines.delay(2200)
+        nav.navigate("login") { popUpTo("splash") { inclusive = true } }
     }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.Shield, null, tint = Cyan, modifier = Modifier.size(72.dp))
-            Text("SENTINEL AI", fontSize = 32.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(top = 14.dp))
-            Text("AI-Powered Personal Cybersecurity & Fraud Protection", color = Muted, fontSize = 13.sp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(120.dp)
+            ) {
+                CircularProgressIndicator(
+                    color = Cyan,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(110.dp)
+                )
+                Icon(
+                    imageVector = Icons.Default.Shield,
+                    contentDescription = "Sentinel AI Shield",
+                    tint = Cyan,
+                    modifier = Modifier.size(60.dp)
+                )
+            }
+            Spacer(Modifier.height(28.dp))
+            Text(
+                text = "SENTINEL AI",
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp,
+                color = Color.White
+            )
+            Text(
+                text = "AI-POWERED PERSONAL CYBERSECURITY & FRAUD PROTECTION",
+                color = Cyan,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+            Spacer(Modifier.height(40.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .background(Color(0xFF0F151F), RoundedCornerShape(20.dp))
+                    .border(1.dp, Line, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(Color(0xFF00E676), RoundedCornerShape(4.dp))
+                )
+                Text(
+                    text = "Security Core: Initializing Live Telemetry",
+                    color = Color(0xFFC0D0E0),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun AuthScreen(nav: NavHostController, title: String, subtitle: String, vm: MainSecurityViewModel) {
+private fun LoginScreen(nav: NavHostController, vm: MainSecurityViewModel) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var fullName by remember { mutableStateOf("") }
     var feedbackMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
-    Column(
-        Modifier
+    Box(
+        modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center
+            .background(DarkBg)
     ) {
-        Text(title, fontSize = 28.sp, fontWeight = FontWeight.Black)
-        Text(subtitle, color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-        Spacer(Modifier.height(20.dp))
-        if (title.contains("Register", true)) {
-            OutlinedTextField(
-                value = fullName,
-                onValueChange = { fullName = it },
-                label = { Text("Full Name") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(10.dp))
-        }
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email Address") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(10.dp))
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        feedbackMessage?.let { msg ->
-            Text(
-                msg,
-                color = if (msg.contains("success", true) || msg.contains("verified", true)) Cyan else Color(0xFFFF5252),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-        Spacer(Modifier.height(20.dp))
-        Button(
-            onClick = {
-                if (title.contains("Reset", true)) {
-                    feedbackMessage = "Password reset instructions sent to $email."
-                    return@Button
-                }
-                if (email.isBlank() || password.isBlank()) {
-                    feedbackMessage = "Please enter both email and password."
-                    return@Button
-                }
-                isLoading = true
-                if (title.contains("Register", true)) {
-                    vm.register(email.trim(), password.trim(), if (fullName.isNotBlank()) fullName.trim() else "User") { success, msg ->
-                        isLoading = false
-                        feedbackMessage = msg
-                        if (success) {
-                            nav.navigate("home") { popUpTo(0) }
-                        }
-                    }
-                } else {
-                    vm.login(email.trim(), password.trim()) { success, msg ->
-                        isLoading = false
-                        feedbackMessage = msg
-                        if (success) {
-                            nav.navigate("home") { popUpTo(0) }
-                        }
-                    }
-                }
-            },
-            enabled = !isLoading,
-            colors = ButtonDefaults.buttonColors(containerColor = Cyan),
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Center
         ) {
+            // Figma Header: Shield + Brand + SECURE LOGIN Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = Cyan,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "SENTINEL AI",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White
+                    )
+                }
+
+                Surface(
+                    color = Color(0xFF0F151F),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.6f))
+                ) {
+                    Text(
+                        text = "SECURE LOGIN",
+                        color = Cyan,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            // Welcome Back
             Text(
-                if (isLoading) "Validating with Supabase..." else "Continue",
-                color = Color.Black,
-                fontWeight = FontWeight.Bold
+                text = "Welcome back",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Black,
+                color = Color.White
             )
+            Text(
+                text = "Protect your phone and accounts.",
+                color = Muted,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
+            )
+
+            // Auth Input Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("EMAIL", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        placeholder = { Text("you@example.com", color = Muted) },
+                        leadingIcon = { Icon(Icons.Default.Email, null, tint = Cyan) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Cyan,
+                            unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Text("PASSWORD", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        placeholder = { Text("Enter your password", color = Muted) },
+                        leadingIcon = { Icon(Icons.Default.Lock, null, tint = Cyan) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Cyan,
+                            unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    feedbackMessage?.let { msg ->
+                        Spacer(Modifier.height(12.dp))
+                        val isPositive = msg.contains("success", true) || msg.contains("verified", true)
+                        Surface(
+                            color = if (isPositive) Color(0xFF0F2D1F) else Color(0xFF2D1212),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = msg,
+                                color = if (isPositive) Color(0xFF00E676) else Color(0xFFFF5252),
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            if (email.isBlank() || password.isBlank()) {
+                                feedbackMessage = "Please enter both email and password."
+                                return@Button
+                            }
+                            isLoading = true
+                            vm.login(email.trim(), password.trim()) { success, msg ->
+                                isLoading = false
+                                feedbackMessage = msg
+                                if (success) {
+                                    nav.navigate("home") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Validating with Supabase...", color = Color.Black, fontWeight = FontWeight.Bold)
+                        } else {
+                            Text("Sign In", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { nav.navigate("forgot-password") }) {
+                            Text("Forgot password?", color = Muted, fontSize = 12.sp)
+                        }
+
+                        TextButton(onClick = { nav.navigate("register") }) {
+                            Text("Create account", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // Guest Entry direct to Dashboard
+            OutlinedButton(
+                onClick = {
+                    nav.navigate("home") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                },
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text("Continue as Guest / Enter Dashboard", color = Color.White, fontSize = 13.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Cyan, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RegisterScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    var fullName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var feedbackMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Figma Top Bar: Back arrow + Title + Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White)
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text("Create account", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)
+                }
+
+                Surface(
+                    color = Color(0xFF0F151F),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Cyan.copy(alpha = 0.6f))
+                ) {
+                    Text(
+                        "FULL CREDENTIALS",
+                        color = Cyan,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = "Set up your protected profile with Sentinel AI",
+                color = Muted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp, start = 4.dp)
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("FULL NAME", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = fullName,
+                        onValueChange = { fullName = it },
+                        placeholder = { Text("Your name", color = Muted) },
+                        leadingIcon = { Icon(Icons.Default.Person, null, tint = Cyan) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Cyan,
+                            unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Text("EMAIL", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        placeholder = { Text("you@example.com", color = Muted) },
+                        leadingIcon = { Icon(Icons.Default.Email, null, tint = Cyan) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Cyan,
+                            unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Text("PHONE", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        placeholder = { Text("10-digit mobile number", color = Muted) },
+                        leadingIcon = { Icon(Icons.Default.Phone, null, tint = Cyan) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Cyan,
+                            unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Text("PASSWORD", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        placeholder = { Text("Create strong password", color = Muted) },
+                        leadingIcon = { Icon(Icons.Default.Lock, null, tint = Cyan) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Cyan,
+                            unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    feedbackMessage?.let { msg ->
+                        Spacer(Modifier.height(12.dp))
+                        val isPositive = msg.contains("success", true) || msg.contains("verified", true)
+                        Surface(
+                            color = if (isPositive) Color(0xFF0F2D1F) else Color(0xFF2D1212),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = msg,
+                                color = if (isPositive) Color(0xFF00E676) else Color(0xFFFF5252),
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            if (email.isBlank() || password.isBlank()) {
+                                feedbackMessage = "Please enter email and password."
+                                return@Button
+                            }
+                            isLoading = true
+                            vm.register(email.trim(), password.trim(), if (fullName.isNotBlank()) fullName.trim() else "User") { success, msg ->
+                                isLoading = false
+                                feedbackMessage = msg
+                                if (success) {
+                                    nav.navigate("home") {
+                                        popUpTo("register") { inclusive = true }
+                                        popUpTo("login") { inclusive = true }
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Saving to Supabase...", color = Color.Black, fontWeight = FontWeight.Bold)
+                        } else {
+                            Text("Create account", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    TextButton(
+                        onClick = { nav.navigate("login") { popUpTo("register") { inclusive = true } } },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("Already have an account? Sign in", color = Cyan, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ForgotPasswordScreen(nav: NavHostController) {
+    var email by remember { mutableStateOf("") }
+    var sentMessage by remember { mutableStateOf<String?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Figma 04 Top Bar: Back arrow + Reset access
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { nav.popBackStack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("Reset access", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+
+            Spacer(Modifier.height(30.dp))
+
+            // Lock Icon in Dark Circle
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(Color(0xFF101924), RoundedCornerShape(40.dp))
+                    .border(1.dp, Cyan.copy(alpha = 0.4f), RoundedCornerShape(40.dp))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = Cyan,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Text("Forgot your password?", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Text(
+                "Enter your email and we'll send a secure reset link.",
+                color = Muted,
+                fontSize = 13.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp, bottom = 24.dp)
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("EMAIL", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        placeholder = { Text("you@example.com", color = Muted) },
+                        leadingIcon = { Icon(Icons.Default.Email, null, tint = Cyan) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Cyan,
+                            unfocusedBorderColor = Line,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    sentMessage?.let { msg ->
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
+                            color = Color(0xFF0F2D1F),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = msg,
+                                color = Color(0xFF00E676),
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            if (email.isNotBlank()) {
+                                sentMessage = "Recovery instructions sent to $email."
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                    ) {
+                        Text("Send reset link", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    TextButton(
+                        onClick = { nav.navigate("login") { popUpTo("forgot-password") { inclusive = true } } },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text("Back to login", color = Cyan, fontSize = 13.sp)
+                    }
+                }
+            }
         }
     }
 }
