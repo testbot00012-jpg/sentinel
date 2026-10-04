@@ -1,0 +1,17 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Gradle & Android builds
+.gradle/
+build/
+app/build/
+*.iml
+.idea/
+local.properties
+
+# OS & Temp
+Thumbs.db
+Desktop.ini

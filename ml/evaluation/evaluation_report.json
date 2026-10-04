@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-10-04T10:41:57.513048+00:00",
+  "pipeline_status": "COMPLETED_SUCCESSFULLY",
+  "models": {
+    "url_detector": {
+      "model_name": "CyberShield-UrlPhish-GBDT-Ensemble",
+      "version": "1.2.0",
+      "algorithm": "GradientBoostingClassifier",
+      "samples_evaluated": 800,
+      "accuracy": 0.9988,
+      "precision": 1.0,
+      "recall": 0.9975,
+      "f1": 0.9987,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "training_time_sec": 0.63
+    },
+    "sms_detector": {
+      "model_name": "CyberShield-MultiLang-ScamNLP",
+      "version": "2.1.0",
+      "algorithm": "TfidfVectorizer + LogisticRegression",
+      "samples_evaluated": 190,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0
+    },
+    "apk_risk_detector": {
+      "model_name": "CyberShield-ApkRisk-TreeForest",
+      "version": "1.4.0",
+      "algorithm": "RandomForestClassifier",
+      "samples_evaluated": 400,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0
+    },
+    "behavior_detector": {
+      "model_name": "CyberShield-BehavioralAnomaly-IsoForest",
+      "version": "1.1.0",
+      "algorithm": "IsolationForest",
+      "samples_trained": 1000,
+      "contamination": 0.03
+    }
+  }
+}

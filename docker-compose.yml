@@ -1,0 +1,50 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cybershield_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=production
+      - DATABASE_URL=postgresql+asyncpg://cybershield_user:SecurePostgresPass2026@postgres:5432/cybershield_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=cybershield-super-secret-production-grade-key-2026
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./storage:/app/storage
+      - ./ml/saved_models:/app/ml/saved_models
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cybershield_postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=cybershield_user
+      - POSTGRES_PASSWORD=SecurePostgresPass2026
+      - POSTGRES_DB=cybershield_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cybershield_user -d cybershield_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: cybershield_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
