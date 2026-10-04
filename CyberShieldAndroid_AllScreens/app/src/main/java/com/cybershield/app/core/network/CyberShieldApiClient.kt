@@ -37,8 +37,8 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
 
     suspend fun login(email: String, pass: String): Result<String> = withContext(Dispatchers.IO) {
         val payload = JSONObject().apply {
-            put("email", email)
-            put("password", pass)
+            put("email", email.trim().lowercase())
+            put("password", pass.trim())
             put("installation_id", "android-inst-" + android.os.Build.ID)
             put("device_name", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
         }
@@ -52,9 +52,9 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
 
     suspend fun register(email: String, pass: String, fullName: String = "User"): Result<String> = withContext(Dispatchers.IO) {
         val payload = JSONObject().apply {
-            put("email", email)
-            put("password", pass)
-            put("full_name", fullName)
+            put("email", email.trim().lowercase())
+            put("password", pass.trim())
+            put("full_name", fullName.trim())
             put("installation_id", "android-inst-" + android.os.Build.ID)
             put("device_name", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
         }
@@ -90,7 +90,13 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
             if (code in 200..299) {
                 Result.success(JSONObject(responseText))
             } else {
-                Result.failure(Exception("HTTP $code: $responseText"))
+                val errorDetail = try {
+                    val errJson = JSONObject(responseText)
+                    errJson.optString("detail", responseText)
+                } catch (_: Exception) {
+                    responseText
+                }
+                Result.failure(Exception(errorDetail))
             }
         } catch (e: Exception) {
             Result.failure(e)

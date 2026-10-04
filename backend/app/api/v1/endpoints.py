@@ -5,7 +5,10 @@ from typing import List, Dict, Any, Optional
 import hashlib
 import os
 import uuid
+import logging
 from datetime import datetime, timedelta, timezone
+
+logger = logging.getLogger(__name__)
 
 from app.database.session import get_db
 from app.config.settings import settings
@@ -58,38 +61,50 @@ assistant_engine = SecurityAssistantEngine()
 
 @api_router.post("/auth/register", response_model=TokenResponse)
 async def register(req: UserRegisterRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == req.email))
-    existing_user = result.scalars().first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email is already registered")
+    clean_email = req.email.strip().lower()
+    clean_password = req.password.strip()
 
-    # 1. Store user credentials in Supabase Auth
+    # 1. Store/update user credentials in Supabase Auth (admin-confirmed, zero email rate limit)
+    supa_res = {}
     try:
-        await supabase_service.register_user(req.email, req.password, {"full_name": req.full_name})
+        supa_res = await supabase_service.register_user(clean_email, clean_password, {"full_name": req.full_name})
     except Exception as e:
-        # If running without live Supabase cloud, logs notice and proceeds
-        pass
+        logger.warning(f"Supabase register error: {e}")
 
-    user = User(
-        email=req.email,
-        hashed_password=get_password_hash(req.password),
-        full_name=req.full_name
-    )
-    db.add(user)
+    result = await db.execute(select(User).where(User.email == clean_email))
+    user = result.scalars().first()
+    if user:
+        # User already in local DB: update password hash
+        user.hashed_password = get_password_hash(clean_password)
+        user.full_name = req.full_name
+    else:
+        user_id = supa_res.get("supabase_uid") or str(uuid.uuid4())
+        user = User(
+            id=user_id,
+            email=clean_email,
+            hashed_password=get_password_hash(clean_password),
+            full_name=req.full_name
+        )
+        db.add(user)
     await db.flush()
 
     # Associate registering device
-    device = Device(
-        user_id=user.id,
-        installation_id=req.installation_id,
-        device_name=req.device_name
-    )
-    db.add(device)
-    await db.flush()
+    device_res = await db.execute(select(Device).where(
+        Device.user_id == user.id,
+        Device.installation_id == req.installation_id
+    ))
+    device = device_res.scalars().first()
+    if not device:
+        device = Device(
+            user_id=user.id,
+            installation_id=req.installation_id,
+            device_name=req.device_name
+        )
+        db.add(device)
+        await db.flush()
 
-    # Initial baseline
-    baseline = BehaviorBaseline(device_id=device.id)
-    db.add(baseline)
+        baseline = BehaviorBaseline(device_id=device.id)
+        db.add(baseline)
 
     # 2. Store initial account activity in Supabase
     await supabase_service.log_account_activity(
@@ -109,20 +124,31 @@ async def register(req: UserRegisterRequest, db: AsyncSession = Depends(get_db))
 
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
-    # 1. Validate credentials with Supabase
-    supa_val = await supabase_service.validate_login_credentials(req.email, req.password)
+    clean_email = req.email.strip().lower()
+    clean_password = req.password.strip()
 
-    result = await db.execute(select(User).where(User.email == req.email))
+    # 1. Validate credentials with Supabase (with auto-confirm retry)
+    supa_val = await supabase_service.validate_login_credentials(clean_email, clean_password)
+
+    result = await db.execute(select(User).where(User.email == clean_email))
     user = result.scalars().first()
 
     # Verify via Supabase Auth or local hash fallback
-    is_valid = supa_val.get("is_valid", False) or (user and user.hashed_password and verify_password(req.password, user.hashed_password))
+    is_valid = supa_val.get("is_valid", False) or (user and user.hashed_password and verify_password(clean_password, user.hashed_password))
 
     if not is_valid:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        err_detail = supa_val.get("error") or "Invalid email or password"
+        if "invalid" in err_detail.lower():
+            err_detail = "Invalid email or password. Please verify your credentials or create an account."
+        raise HTTPException(status_code=401, detail=err_detail)
 
     if not user:
-        user = User(email=req.email, hashed_password=get_password_hash(req.password))
+        user = User(
+            id=supa_val.get("supabase_uid") or str(uuid.uuid4()),
+            email=clean_email,
+            hashed_password=get_password_hash(clean_password),
+            full_name=clean_email.split("@")[0].capitalize()
+        )
         db.add(user)
         await db.flush()
 

@@ -2003,7 +2003,7 @@ private fun LoginScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                                 return@Button
                             }
                             isLoading = true
-                            vm.login(email.trim(), password.trim()) { success, msg ->
+                            vm.login(email.trim().lowercase(), password.trim()) { success, msg ->
                                 isLoading = false
                                 feedbackMessage = msg
                                 if (success) {
@@ -2237,7 +2237,7 @@ private fun RegisterScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                                 return@Button
                             }
                             isLoading = true
-                            vm.register(email.trim(), password.trim(), if (fullName.isNotBlank()) fullName.trim() else "User") { success, msg ->
+                            vm.register(email.trim().lowercase(), password.trim(), if (fullName.isNotBlank()) fullName.trim() else "User") { success, msg ->
                                 isLoading = false
                                 feedbackMessage = msg
                                 if (success) {
