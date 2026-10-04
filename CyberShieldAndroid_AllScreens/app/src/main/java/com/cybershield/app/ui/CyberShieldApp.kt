@@ -1,5 +1,7 @@
 package com.cybershield.app.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -7,7 +9,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,8 +22,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -68,7 +75,7 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
             composable("register") { RegisterScreen(nav, viewModel) }
             composable("forgot-password") { ForgotPasswordScreen(nav) }
             composable("home") { HomeScreen(nav, viewModel) }
-            composable("protect") { ProtectScreen(nav) }
+            composable("protect") { ProtectScreen(nav, viewModel) }
             composable("scan") { ScanCenterScreen(nav, viewModel) }
             composable("alerts") { AlertCenterScreen(nav, viewModel) }
             composable("settings") { SettingsScreen(nav, viewModel) }
@@ -105,22 +112,71 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
 
 @Composable
 private fun BottomBar(nav: NavHostController) {
-    NavigationBar(containerColor = Color(0xFF0B0F15)) {
-        val items = listOf(
-            Triple("home", "Home", Icons.Default.Home),
-            Triple("protect", "Protect", Icons.Default.Security),
-            Triple("scan", "Scan", Icons.Default.QrCodeScanner),
-            Triple("alerts", "Alerts", Icons.Default.Notifications),
-            Triple("settings", "Settings", Icons.Default.Settings)
-        )
-        val currentRoute = nav.currentBackStackEntry?.destination?.route
-        items.forEach { (route, label, icon) ->
-            NavigationBarItem(
-                selected = currentRoute == route,
-                onClick = { nav.navigate(route) { launchSingleTop = true; restoreState = true } },
-                icon = { Icon(icon, null) },
-                label = { Text(label, fontSize = 11.sp) }
-            )
+    val items = listOf(
+        Triple("home", "Home", Icons.Default.Home),
+        Triple("protect", "Protect", Icons.Default.Shield),
+        Triple("scan", "Scan", Icons.Default.CropFree),
+        Triple("alerts", "Alerts", Icons.Default.NotificationsNone),
+        Triple("settings", "Settings", Icons.Default.Settings)
+    )
+    val navBackStackEntry by nav.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    Surface(
+        color = Color(0xFF07090D),
+        border = BorderStroke(1.dp, Color(0xFF161B22)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items.forEach { (route, label, icon) ->
+                val isSelected = currentRoute == route ||
+                    (route == "protect" && (currentRoute == "family" || currentRoute == "risk")) ||
+                    (route == "scan" && (currentRoute == "message_result" || currentRoute == "url_protection" || currentRoute == "qr_payment" || currentRoute == "history" || currentRoute == "ai"))
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clickable {
+                            nav.navigate(route) {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .width(if (isSelected) 52.dp else 40.dp)
+                            .height(28.dp)
+                            .then(
+                                if (isSelected) Modifier.background(Color(0xFF0F3A4A), RoundedCornerShape(16.dp))
+                                else Modifier
+                            )
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = label,
+                            tint = if (isSelected) Cyan else Muted,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        label,
+                        color = if (isSelected) Cyan else Muted,
+                        fontSize = 10.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
         }
     }
 }
@@ -146,266 +202,339 @@ private fun TopBar(title: String, nav: NavHostController, showBack: Boolean = tr
 }
 
 @Composable
-private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    val telemetry by vm.telemetry.collectAsState()
-    val scoreState by vm.securityScore.collectAsState()
-    val currentScan by vm.currentScanResult.collectAsState()
-    val alerts by vm.alerts.collectAsState()
-    val scoreColor = SentinelRiskColors.getColorForScore(scoreState.overallScore)
-    val scoreStatus = SentinelRiskColors.getStatusForScore(scoreState.overallScore)
-
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
+private fun FigmaHeader(
+    title: String,
+    subtitle: String,
+    nav: NavHostController,
+    showBell: Boolean = true
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Figma Header
-        item {
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                subtitle,
+                fontSize = 12.sp,
+                color = Muted,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        if (showBell) {
+            Surface(
+                color = Color(0xFF121822),
+                shape = CircleShape,
+                border = BorderStroke(1.dp, Color(0xFF1F2937)),
+                modifier = Modifier
+                    .size(42.dp)
+                    .clickable { nav.navigate("alerts") }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Shield, null, tint = Cyan, modifier = Modifier.size(26.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("SENTINEL AI", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)
-                }
-
-                Surface(
-                    color = Color(0xFF0F2D1F),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f))
-                ) {
-                    Text(
-                        "PROTECTED",
-                        color = Color(0xFF00E676),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(
+                        Icons.Default.NotificationsNone,
+                        contentDescription = "Alerts",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
-            }
-            Spacer(Modifier.height(14.dp))
-        }
-
-        // Figma Overview Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(18.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(Modifier.padding(20.dp)) {
-                    Text("Overview", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Protected", color = Color(0xFF00E676), fontSize = 34.sp, fontWeight = FontWeight.Black)
-                    Text("Current risk • LOW • Score ${scoreState.overallScore}/100", color = Color(0xFFC0D0E0), fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = { nav.navigate("scan") },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E699)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Text("Run Security Scan", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-
-        // Figma Core Shortcuts
-        item {
-            Text("Core AI Security Modules", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Card(
-                    onClick = { nav.navigate("feature/url_scanner") },
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("Analyze URL", fontWeight = FontWeight.Bold, color = Cyan, fontSize = 13.sp)
-                        Text("Live Detection", color = Muted, fontSize = 11.sp)
-                    }
-                }
-
-                Card(
-                    onClick = { nav.navigate("feature/explain_app_permissions") },
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("Permissions", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
-                        Text("Secure Workflow", color = Muted, fontSize = 11.sp)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Card(
-                    onClick = { nav.navigate("feature/security_recommendations") },
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("AI Recommendations", fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24), fontSize = 13.sp)
-                        Text("Real Advice", color = Muted, fontSize = 11.sp)
-                    }
-                }
-
-                Card(
-                    onClick = { nav.navigate("feature/emergency_guidance") },
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("Emergency", fontWeight = FontWeight.Bold, color = Color(0xFFFF5252), fontSize = 13.sp)
-                        Text("Rapid Guidance", color = Muted, fontSize = 11.sp)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-        }
-
-        // Figma Key Indicators Table
-        item {
-            Text("Key indicators", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(Modifier.height(8.dp))
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    FigmaMetricRow("Primary System", "Healthy", Color.White)
-                    HorizontalDivider(color = Line)
-                    FigmaMetricRow("Last event", "Today", Color.White)
-                    HorizontalDivider(color = Line)
-                    FigmaMetricRow("Coverage", "Complete", Color.White)
-                    HorizontalDivider(color = Line)
-                    FigmaMetricRow("Cloud Shield", "Online (Railway Live)", Color(0xFF00E676))
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-        }
-        item {
-            Spacer(Modifier.height(14.dp))
-            SectionTitle("Hardware & OS Telemetry", "Direct Android System APIs (Zero simulated data)")
-        }
-        item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                telemetry?.let { t ->
-                    Text("${t.brand.uppercase()} ${t.model} (Android ${t.androidVersion})", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("Security Patch: ${t.securityPatch} • SDK ${t.sdkLevel}", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                    Spacer(Modifier.height(10.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Battery: ${t.batteryPercent}% ${if (t.isCharging) "(Charging)" else ""}", fontSize = 13.sp)
-                        Text("Storage: ${t.storageUsedPercent}% used", fontSize = 13.sp)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Screen Lock: ${if (t.isScreenLockEnabled) "Secure (PIN/Bio)" else "Insecure"}", color = if (t.isScreenLockEnabled) SentinelRiskColors.SAFE_GREEN else SentinelRiskColors.DANGER_RED, fontSize = 12.sp)
-                        Text("Encryption: ${if (t.isStorageEncrypted) "Hardware Encrypted" else "Off"}", color = if (t.isStorageEncrypted) SentinelRiskColors.SAFE_GREEN else SentinelRiskColors.DANGER_RED, fontSize = 12.sp)
-                    }
-                    if (t.isRootDetected) {
-                        Text("Root / Tampering Detected: ${t.rootSignals.joinToString()}", color = SentinelRiskColors.DANGER_RED, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-                    }
-                } ?: CircularProgressIndicator(color = Cyan, modifier = Modifier.size(24.dp))
-            }
-        }
-        item {
-            Spacer(Modifier.height(14.dp))
-            SectionTitle("Security Modules", "Select an inspection vector")
-        }
-        val tiles = listOf(
-            "Device Health" to "device",
-            "Apps Manager" to "apps",
-            "Privacy Center" to "privacy",
-            "Storage Manager" to "storage",
-            "Network Guard" to "network",
-            "Scan Center" to "scan",
-            "Alert Center" to "alerts",
-            "Personal Risk" to "risk",
-            "Scan History" to "history",
-            "Incidents" to "feature/${ScreenRegistry.all.first { it.title == "Incident Details" }.route}"
-        )
-        items(tiles.chunked(2)) { pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEach { (title, route) ->
-                    GlassCard(Modifier.weight(1f).padding(vertical = 4.dp)) {
-                        Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Button(
-                            onClick = { nav.navigate(route) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)),
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                        ) {
-                            Text("Open", color = Cyan, fontSize = 12.sp)
-                        }
-                    }
-                }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun ProtectScreen(nav: NavHostController) {
-    val groups = ScreenRegistry.byGroup.filterKeys { it.startsWith("0") || it.startsWith("1") }.toList()
+private fun FigmaSubHeader(
+    title: String,
+    subtitle: String,
+    nav: NavHostController
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = { nav.popBackStack() }) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+        }
+        Spacer(Modifier.width(4.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                subtitle,
+                fontSize = 12.sp,
+                color = Muted,
+                modifier = Modifier.padding(top = 1.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun CircularRiskGauge(
+    score: Int,
+    statusText: String,
+    statusColor: Color,
+    modifier: Modifier = Modifier.size(80.dp)
+) {
+    Box(contentAlignment = Alignment.Center, modifier = modifier) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val strokeWidth = 7.dp.toPx()
+            drawArc(
+                color = Color(0xFF1E2836),
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                style = Stroke(width = strokeWidth)
+            )
+            drawArc(
+                color = statusColor,
+                startAngle = -90f,
+                sweepAngle = 360f * (score.coerceIn(0, 100) / 100f),
+                useCenter = false,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("$score", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(statusText, color = statusColor, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+        }
+    }
+}
+
+
+@Composable
+private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    val scoreState by vm.securityScore.collectAsState()
+
     LazyColumn(
         Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
+        // Figma Header: "Good morning / Your phone is protected"
         item {
-            TopBar("Protection Hierarchy", nav, false)
-            SectionTitle("All 19 Security Modules", "174 Registered Screen Destinations")
+            FigmaHeader(
+                title = "Good morning",
+                subtitle = "Your phone is protected",
+                nav = nav,
+                showBell = true
+            )
+            Spacer(Modifier.height(2.dp))
         }
-        groups.forEach { (group, screens) ->
-            item {
-                GlassCard(Modifier.padding(top = 10.dp)) {
-                    Text(group, fontWeight = FontWeight.Bold, color = Cyan, fontSize = 15.sp)
-                    screens.take(3).forEach { spec ->
-                        FeatureRow(spec.title, "Open capability", { nav.navigate("feature/${spec.route}") })
+
+        // Status badge: PROTECTED
+        item {
+            Surface(
+                color = Color(0xFF0F2D1F),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f))
+            ) {
+                Text(
+                    "PROTECTED",
+                    color = Color(0xFF00E676),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Hero Card: Security Health
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = Cyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Security health", color = Muted, fontSize = 13.sp)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text("91", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.Black)
+                            Text("  / 100", color = Muted, fontSize = 15.sp, modifier = Modifier.padding(bottom = 6.dp))
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text("No critical threats", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
-                    if (screens.size > 3) {
-                        FeatureRow("View remaining ${screens.size - 3} screens...", "Browse module directory", { nav.navigate("feature/${screens[3].route}") })
+
+                    CircularRiskGauge(
+                        score = 91,
+                        statusText = "SAFE",
+                        statusColor = Color(0xFF00E676),
+                        modifier = Modifier.size(82.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Quick Actions 2x2 Grid
+        item {
+            Text("Quick actions", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickActionCard(
+                    title = "Scan now",
+                    icon = Icons.Default.CropFree,
+                    iconColor = Cyan,
+                    onClick = { nav.navigate("scan") },
+                    modifier = Modifier.weight(1f)
+                )
+                QuickActionCard(
+                    title = "Apps",
+                    icon = Icons.Default.GridView,
+                    iconColor = Color(0xFF818CF8),
+                    onClick = { nav.navigate("apps") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickActionCard(
+                    title = "Storage",
+                    icon = Icons.Default.Folder,
+                    iconColor = Color(0xFFFBBF24),
+                    onClick = { nav.navigate("storage") },
+                    modifier = Modifier.weight(1f)
+                )
+                QuickActionCard(
+                    title = "Network",
+                    icon = Icons.Default.Wifi,
+                    iconColor = Color(0xFF34D399),
+                    onClick = { nav.navigate("network") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+
+        // 2 recommendations Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0xFF2C2010), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.WarningAmber,
+                            contentDescription = null,
+                            tint = Color(0xFFF59E0B),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("2 recommendations", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("Review risky app permissions", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                color = Color(0xFF1F2937),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.clickable { nav.navigate("privacy") }
+                            ) {
+                                Text(
+                                    "Review",
+                                    color = Cyan,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                )
+                            }
+                            Text("Updated now", color = Muted, fontSize = 11.sp)
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun QuickActionCard(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Line),
+        modifier = modifier.height(72.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun ProtectScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    FamilyProtectionScreen(nav, vm)
 }
 
 @Composable
 private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    var selectedScanType by remember { mutableStateOf("URL Scanner") }
-    var inputQuery by remember { mutableStateOf("") }
-    val isScanning by vm.isScanning.collectAsState()
-
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -413,93 +542,626 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            TopBar("Scan Center", nav, false)
-            SectionTitle("Threat & Fraud Scanner Hub", "Real multi-model inference pipelines")
+            FigmaHeader(
+                title = "Scan center",
+                subtitle = "Analyze before you act",
+                nav = nav,
+                showBell = true
+            )
+            Spacer(Modifier.height(4.dp))
         }
+
+        // Quick scan Card
         item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Select Vector to Analyze", fontWeight = FontWeight.Bold)
-                val options = listOf("URL Scanner", "SMS Scam Detection", "QR & UPI Payment", "APK & App Risk", "Payment Screenshot")
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    options.forEach { opt ->
-                        FilterChip(
-                            selected = selectedScanType == opt,
-                            onClick = { selectedScanType = opt; inputQuery = "" },
-                            label = { Text(opt.split(" ")[0], fontSize = 11.sp) }
-                        )
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .background(Color(0xFF0B2530), RoundedCornerShape(12.dp))
+                            .border(1.dp, Cyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.CropFree, contentDescription = null, tint = Cyan, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Quick scan", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Device + apps + network", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Surface(
+                            color = Color(0xFF1F2937),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.clickable {
+                                vm.scanUrl("https://secure-pay.example")
+                                nav.navigate("url_protection")
+                            }
+                        ) {
+                            Text(
+                                "START",
+                                color = Cyan,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
                     }
                 }
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = inputQuery,
-                    onValueChange = { inputQuery = it },
-                    label = {
-                        Text(
-                            when (selectedScanType) {
-                                "URL Scanner" -> "Enter URL (e.g. http://login-sbi-update.xyz)"
-                                "SMS Scam Detection" -> "Paste SMS or message content..."
-                                "QR & UPI Payment" -> "Enter QR payload or upi:// URI"
-                                "APK & App Risk" -> "Enter package name (e.g. com.banking.fakeapp)"
-                                else -> "Enter transaction or payment reference ID"
-                            },
-                            fontSize = 12.sp
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-                Button(
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Detection tools 2x4 grid
+        item {
+            Text("Detection tools", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(10.dp))
+        }
+
+        // Row 1: Message & URL
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DetectionToolCard(
+                    title = "Message",
+                    subtitle = "SMS / WhatsApp",
+                    icon = Icons.Default.AutoAwesome,
+                    iconColor = Color(0xFFA855F7),
                     onClick = {
-                        if (inputQuery.isNotBlank()) {
-                            when (selectedScanType) {
-                                "URL Scanner" -> {
-                                    vm.scanUrl(inputQuery)
-                                    nav.navigate("url_protection")
-                                }
-                                "SMS Scam Detection" -> {
-                                    vm.scanMessage(inputQuery)
-                                    nav.navigate("message_result")
-                                }
-                                "QR & UPI Payment" -> {
-                                    vm.scanQr(inputQuery)
-                                    nav.navigate("qr_payment")
-                                }
-                                "APK & App Risk" -> {
-                                    vm.scanApk(inputQuery)
-                                    nav.navigate("url_protection")
-                                }
-                                else -> {
-                                    vm.scanPayment(inputQuery)
-                                    nav.navigate("qr_payment")
-                                }
+                        vm.scanMessage("Your account will be blocked unless you verify credentials immediately.")
+                        nav.navigate("message_result")
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                DetectionToolCard(
+                    title = "URL",
+                    subtitle = "Phishing / links",
+                    icon = Icons.Default.Shield,
+                    iconColor = Cyan,
+                    onClick = {
+                        vm.scanUrl("https://secure-pay.example")
+                        nav.navigate("url_protection")
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        // Row 2: QR & Payment
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DetectionToolCard(
+                    title = "QR",
+                    subtitle = "Scan safely",
+                    icon = Icons.Default.QrCodeScanner,
+                    iconColor = Cyan,
+                    onClick = {
+                        vm.scanQr("upi://pay?pa=merchant@upi&pn=Merchant&am=18500")
+                        nav.navigate("qr_payment")
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                DetectionToolCard(
+                    title = "Payment",
+                    subtitle = "Fake screenshot",
+                    icon = Icons.Default.FolderOpen,
+                    iconColor = Color(0xFFFBBF24),
+                    onClick = {
+                        vm.scanPayment("merchant@upi")
+                        nav.navigate("qr_payment")
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        // Row 3: APK / App & Call
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DetectionToolCard(
+                    title = "APK / App",
+                    subtitle = "Permissions",
+                    icon = Icons.Default.GridView,
+                    iconColor = Color(0xFFFF5252),
+                    onClick = { nav.navigate("apps") },
+                    modifier = Modifier.weight(1f)
+                )
+                DetectionToolCard(
+                    title = "Call",
+                    subtitle = "Caller risk",
+                    icon = Icons.Default.PhoneAndroid,
+                    iconColor = Color(0xFF60A5FA),
+                    onClick = { nav.navigate("feature/scam_call_identifier") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        // Row 4: Media & Investment
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DetectionToolCard(
+                    title = "Media",
+                    subtitle = "Deepfake",
+                    icon = Icons.Default.Star,
+                    iconColor = Cyan,
+                    onClick = { nav.navigate("feature/ai_media_scanner") },
+                    modifier = Modifier.weight(1f)
+                )
+                DetectionToolCard(
+                    title = "Investment",
+                    subtitle = "Loan scams",
+                    icon = Icons.Default.WarningAmber,
+                    iconColor = Color(0xFFF59E0B),
+                    onClick = { nav.navigate("feature/investment_fraud_analyzer") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetectionToolCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Line),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(10.dp))
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(subtitle, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+            Spacer(Modifier.height(10.dp))
+            Text("Analyze", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun EvidenceRow(label: String, value: String, valueColor: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = Muted, fontSize = 13.sp)
+        Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun SignalPill(label: String, bg: Color, fg: Color) {
+    Surface(
+        color = bg,
+        shape = RoundedCornerShape(6.dp)
+    ) {
+        Text(
+            label,
+            color = fg,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
+    }
+}
+
+@Composable
+private fun FlaggedItem(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, color = Color(0xFFE2E8F0), fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun CheckshieldItem(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Shield, contentDescription = null, tint = Cyan, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, color = Color(0xFFE2E8F0), fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun MessageAnalysisScreen(
+    nav: NavHostController,
+    result: SecurityResult?,
+    vm: MainSecurityViewModel
+) {
+    LazyColumn(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
+        item {
+            FigmaSubHeader("Message analysis", "SMS / WhatsApp", nav)
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // HIGH RISK pill badge
+        item {
+            Surface(
+                color = Color(0xFF2D1212),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.7f))
+            ) {
+                Text(
+                    "HIGH RISK",
+                    color = Color(0xFFFF5252),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Headline
+        item {
+            Text(
+                "\"Your account will be blocked...\"",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Sender & Detected signals Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Sender", color = Muted, fontSize = 11.sp)
+                    Text("+91 •••• 7284", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("Detected signals", color = Muted, fontSize = 11.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SignalPill("Urgency", Color(0xFF2D1212), Color(0xFFFF5252))
+                        SignalPill("OTP request", Color(0xFF2C2010), Color(0xFFF59E0B))
+                        SignalPill("Look-alike", Color(0xFF2D1212), Color(0xFFFF5252))
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+
+        // Risk score
+        item {
+            Text("Risk score", color = Muted, fontSize = 12.sp)
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text("87 / 100", color = Color(0xFFFF5252), fontSize = 38.sp, fontWeight = FontWeight.Black)
+                Text("Confidence 91%", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Why we flagged it
+        item {
+            Text("Why we flagged it", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FlaggedItem("Urgent account threat language")
+                FlaggedItem("Requests sensitive credentials")
+                FlaggedItem("Sender identity is unverified")
+            }
+            Spacer(Modifier.height(22.dp))
+        }
+
+        // Safe next action Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.5.dp, Color(0xFF00E676)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = Color(0xFF00E676),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Safe next action", color = Color(0xFF00E676), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Do not reply, pay or share OTPs.", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
+                            color = Color.Transparent,
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, Cyan),
+                            modifier = Modifier.clickable { nav.navigate("history") }
+                        ) {
+                            Text(
+                                "Preserve evidence",
+                                color = Cyan,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UrlProtectionScreen(
+    nav: NavHostController,
+    result: SecurityResult?,
+    vm: MainSecurityViewModel
+) {
+    LazyColumn(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
+        item {
+            FigmaSubHeader("URL protection", "Preview risky destinations", nav)
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // URL display box
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardBg, RoundedCornerShape(12.dp))
+                    .border(1.dp, Line, RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Text(
+                    result?.rawInputReference ?: "https://secure-pay.example",
+                    color = Color(0xFFE2E8F0),
+                    fontSize = 13.sp
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // HIGH RISK pill badge
+        item {
+            Surface(
+                color = Color(0xFF2D1212),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.7f))
+            ) {
+                Text(
+                    "HIGH RISK",
+                    color = Color(0xFFFF5252),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Suspicious destination Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+                    Icon(
+                        Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = Color(0xFFFF5252),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Suspicious destination", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Look-alike domain + redirect chain", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(6.dp))
+                        Text("3 risk signals", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+
+        // Evidence section
+        item {
+            Text("Evidence", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    EvidenceRow("Domain age", "2 days", Color(0xFFFBBF24))
+                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+                    EvidenceRow("Redirects", "3 hops", Color(0xFFFBBF24))
+                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+                    EvidenceRow("Credential pattern", "Detected", Color(0xFFFF5252))
+                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+                    EvidenceRow("TLS", "Valid", Color(0xFF00E676))
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // Do not open this link button
+        item {
+            Button(
+                onClick = { nav.popBackStack() },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text("Do not open this link", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun QrPaymentScreen(
+    nav: NavHostController,
+    result: SecurityResult?,
+    vm: MainSecurityViewModel
+) {
+    LazyColumn(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
+        item {
+            FigmaSubHeader("QR & payment", "Review before you pay", nav)
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // QR decoded Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(Color(0xFF0B1925), RoundedCornerShape(12.dp))
+                            .border(1.dp, Cyan.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.CropFree, contentDescription = null, tint = Cyan, modifier = Modifier.size(32.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("QR decoded", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Surface(
+                                color = Color(0xFF2C2010),
+                                border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    "SUSPICIOUS",
+                                    color = Color(0xFFF59E0B),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
                             }
                         }
-                    },
-                    enabled = inputQuery.isNotBlank() && !isScanning,
-                    colors = ButtonDefaults.buttonColors(containerColor = Cyan),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (isScanning) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.Black)
-                    } else {
-                        Text("Execute Security Analysis", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+                        Text("Recipient", color = Muted, fontSize = 11.sp)
+                        Text("merchant@upi", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Amount", color = Muted, fontSize = 11.sp)
+                        Text("₹18,500", color = Color(0xFFFBBF24), fontWeight = FontWeight.Black, fontSize = 24.sp)
                     }
                 }
             }
+            Spacer(Modifier.height(18.dp))
         }
+
+        // Before you pay section
         item {
-            Spacer(Modifier.height(14.dp))
-            SectionTitle("Specialized Scanners")
-        }
-        val scanItems = listOf(
-            "SMS Analysis", "URL Scanner", "QR Code Scanner", "Payment / Fake Screenshot",
-            "APK / Sideload Security", "Scam Call Risk", "Investment & Loan Fraud", "Deepfake Media Detection"
-        )
-        items(scanItems) { title ->
-            val spec = ScreenRegistry.all.firstOrNull { it.title.contains(title.split(" ")[0], true) }
-            FeatureRow(title, "Open dedicated detector") {
-                if (spec != null) nav.navigate("feature/${spec.route}")
+            Text("Before you pay", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CheckshieldItem("Recipient matches your intent")
+                    CheckshieldItem("Amount matches what you expect")
+                    CheckshieldItem("No urgent or coercive instruction")
+                }
             }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Button
+        item {
+            Button(
+                onClick = { /* review action */ },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10151E)),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text("Review in your payment app", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "CyberShield never controls your bank transaction.",
+                color = Muted,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -507,6 +1169,22 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
 @Composable
 private fun ResultScreen(nav: NavHostController, title: String, vm: MainSecurityViewModel) {
     val result by vm.currentScanResult.collectAsState()
+
+    when {
+        title.contains("Message", ignoreCase = true) -> {
+            MessageAnalysisScreen(nav, result, vm)
+            return
+        }
+        title.contains("URL", ignoreCase = true) -> {
+            UrlProtectionScreen(nav, result, vm)
+            return
+        }
+        title.contains("QR", ignoreCase = true) -> {
+            QrPaymentScreen(nav, result, vm)
+            return
+        }
+    }
+
     val scanChatThreads by vm.scanChatThreads.collectAsState()
     val isAssistantResponding by vm.isAssistantResponding.collectAsState()
     var userQuestionInput by remember { mutableStateOf("") }
@@ -882,7 +1560,6 @@ private fun ResultScreen(nav: NavHostController, title: String, vm: MainSecurity
 
 @Composable
 private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    val alerts by vm.alerts.collectAsState()
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -890,42 +1567,155 @@ private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel)
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            TopBar("Alert Center", nav, false)
-            SectionTitle("Active Threat Advisories", "Prioritized security events")
+            FigmaHeader(
+                title = "Alerts",
+                subtitle = "Prioritized security events",
+                nav = nav,
+                showBell = true
+            )
+            Spacer(Modifier.height(4.dp))
         }
-        if (alerts.isEmpty()) {
-            item {
-                GlassCard(Modifier.padding(top = 12.dp)) {
-                    Text("No active alerts", fontWeight = FontWeight.Bold)
-                    Text("No elevated threats currently detected on this device. Subsystems are operating normally.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+
+        // Filter chips: 2 UNRESOLVED / 7 RESOLVED
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Surface(
+                    color = Color(0xFF2D1212),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.7f))
+                ) {
+                    Text(
+                        "2 UNRESOLVED",
+                        color = Color(0xFFFF5252),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+
+                Surface(
+                    color = Color(0xFF0F2D1F),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        "7 RESOLVED",
+                        color = Color(0xFF00E676),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
                 }
             }
-        } else {
-            items(alerts) { alert ->
-                GlassCard(Modifier.padding(top = 10.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(alert.title, fontWeight = FontWeight.Bold, color = Color.White)
-                        RiskChip(alert.severity.label)
-                    }
-                    Text(alert.description, color = Color(0xFFE2E8F0), fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
-                    alert.recommendedAction?.let {
-                        Text("Action: $it", color = Cyan, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-                    }
-                    Button(
-                        onClick = { vm.dismissAlert(alert.id) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)),
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) {
-                        Text("Acknowledge / Dismiss", fontSize = 11.sp)
-                    }
-                }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Priority alerts section
+        item {
+            Text("Priority alerts", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(10.dp))
+        }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Alert 1: High risk app
+                FigmaAlertCard(
+                    title = "High risk app",
+                    description = "SMS + accessibility access",
+                    time = "8 min ago",
+                    icon = Icons.Default.Warning,
+                    iconBg = Color(0xFF2D1212),
+                    iconColor = Color(0xFFFF5252),
+                    actionColor = Color(0xFFFF5252),
+                    onClick = { nav.navigate("apps") }
+                )
+
+                // Alert 2: Suspicious network
+                FigmaAlertCard(
+                    title = "Suspicious network",
+                    description = "Unknown connection blocked",
+                    time = "1 hr ago",
+                    icon = Icons.Default.Wifi,
+                    iconBg = Color(0xFF2C2010),
+                    iconColor = Color(0xFFF59E0B),
+                    actionColor = Color(0xFFF59E0B),
+                    onClick = { nav.navigate("network") }
+                )
+
+                // Alert 3: Security update
+                FigmaAlertCard(
+                    title = "Security update",
+                    description = "Patch available",
+                    time = "Today",
+                    icon = Icons.Default.Shield,
+                    iconBg = Color(0xFF102636),
+                    iconColor = Cyan,
+                    actionColor = Cyan,
+                    onClick = { nav.navigate("device") }
+                )
+
+                // Alert 4: Evidence reminder
+                FigmaAlertCard(
+                    title = "Evidence reminder",
+                    description = "Export not configured",
+                    time = "Yesterday",
+                    icon = Icons.Default.WarningAmber,
+                    iconBg = Color(0xFF25122D),
+                    iconColor = Color(0xFFA855F7),
+                    actionColor = Color(0xFFA855F7),
+                    onClick = { nav.navigate("history") }
+                )
             }
         }
     }
 }
 
 @Composable
+private fun FigmaAlertCard(
+    title: String,
+    description: String,
+    time: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconBg: Color,
+    iconColor: Color,
+    actionColor: Color,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Line),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .background(iconBg, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(description, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
+                Text(time, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+            Text("View", color = actionColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
 private fun AiAssistantScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    val messages by vm.assistantMessages.collectAsState()
+    var inputQuery by remember { mutableStateOf("") }
+
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -933,36 +1723,208 @@ private fun AiAssistantScreen(nav: NavHostController, vm: MainSecurityViewModel)
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            TopBar("Sentinel AI Engine", nav)
-            SectionTitle("Context-Aware Architecture", "Embedded Inline Scan Assistants")
+            FigmaHeader(
+                title = "Security AI",
+                subtitle = "Evidence-first guidance",
+                nav = nav,
+                showBell = true
+            )
+            Spacer(Modifier.height(4.dp))
         }
+
+        // Ask before you act Card
         item {
-            GlassCard(Modifier.padding(top = 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Shield, contentDescription = null, tint = Cyan, modifier = Modifier.size(32.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text("Dedicated Scan Assistants", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Cyan, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Ask before you act", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Threats • URLs • messages • permissions", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                    }
                 }
-                Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Conversation thread
+        // User question on right
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.End
+            ) {
                 Text(
-                    "Sentinel AI does NOT utilize a detached, generic chatbot. Every security scan (URL, SMS, QR, APK, Payment, Deepfake) generates its own dedicated, context-aware AI assistant embedded directly inside the scan result.",
-                    color = Color(0xFFE2E8F0),
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "To ask Sentinel AI grounded questions about a specific target, run an inspection in the Scan Center or open an item from Scan History.",
+                    "YOU",
                     color = Muted,
-                    fontSize = 12.sp
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(end = 4.dp, bottom = 4.dp)
                 )
-                Spacer(Modifier.height(14.dp))
-                Button(
-                    onClick = { nav.navigate("scan") },
-                    colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                Surface(
+                    color = Cyan,
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 4.dp),
+                    modifier = Modifier.padding(bottom = 14.dp)
+                ) {
+                    Text(
+                        "Is this payment message a scam?",
+                        color = Color.Black,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                }
+            }
+        }
+
+        // AI Response on left
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .padding(bottom = 16.dp)
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Open Scan Center", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "CYBERSHIELD AI",
+                            color = Cyan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "It has several scam indicators.",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "• urgent payment request\n• OTP-related language\n• sender identity is not verified",
+                            color = Color(0xFFE2E8F0),
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Confidence 91% • not proof",
+                            color = Color(0xFFFBBF24),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
+        // Render any additional dynamic messages sent by user
+        items(messages.drop(1)) { msg ->
+            if (msg.isFromUser) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        "YOU",
+                        color = Muted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 4.dp, bottom = 4.dp)
+                    )
+                    Surface(
+                        color = Cyan,
+                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 4.dp),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    ) {
+                        Text(
+                            msg.text,
+                            color = Color.Black,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        )
+                    }
+                }
+            } else {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .padding(bottom = 12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            "CYBERSHIELD AI",
+                            color = Cyan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            msg.text,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        // Bottom Input box
+        item {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardBg, RoundedCornerShape(24.dp))
+                    .border(1.dp, Line, RoundedCornerShape(24.dp))
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = inputQuery,
+                    onValueChange = { inputQuery = it },
+                    placeholder = { Text("Ask another question...", color = Muted, fontSize = 12.sp) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = {
+                        if (inputQuery.isNotBlank()) {
+                            val q = inputQuery.trim()
+                            inputQuery = ""
+                            vm.sendAssistantMessage(q)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text("Ask", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
@@ -1133,7 +2095,6 @@ private fun NetworkGuardScreen(nav: NavHostController, vm: MainSecurityViewModel
 
 @Composable
 private fun RiskScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    val score by vm.securityScore.collectAsState()
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -1141,24 +2102,75 @@ private fun RiskScreen(nav: NavHostController, vm: MainSecurityViewModel) {
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            TopBar("Personal Cyber-Risk", nav)
-            SectionTitle("Adaptive Behavioral Posture", "Aggregated risk indicators")
+            FigmaSubHeader("Cyber-risk", "Awareness score for your account", nav)
+            Spacer(Modifier.height(4.dp))
         }
+
+        // Hero Card (Score & 30-day Trend)
         item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Current Cyber-Risk Index", color = Muted, fontSize = 12.sp)
-                Text("${100 - score.overallScore} / 100", fontSize = 38.sp, fontWeight = FontWeight.Black, color = if (score.overallScore >= 80) Color(0xFF34D399) else Color(0xFFFBBF24))
-                Text("Lower risk index is better", color = Muted, fontSize = 12.sp)
-            }
-        }
-        item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Subsystem Score Breakdown", fontWeight = FontWeight.Bold)
-                score.breakdown.forEach { (name, s) ->
-                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(name, fontSize = 13.sp)
-                        Text("$s / 100", fontWeight = FontWeight.Bold, color = if (s >= 80) Color(0xFF34D399) else Color(0xFFFBBF24))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularRiskGauge(
+                        score = 82,
+                        statusText = "LOW RISK",
+                        statusColor = Color(0xFF00E676),
+                        modifier = Modifier.size(84.dp)
+                    )
+                    Spacer(Modifier.width(20.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("30-day trend", color = Muted, fontSize = 11.sp)
+                        Text("↓ 12%", color = Color(0xFF00E676), fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(6.dp))
+                        Text("2 risky apps", color = Color(0xFFE2E8F0), fontSize = 12.sp)
+                        Text("1 blocked URL", color = Color(0xFFE2E8F0), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                     }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Risk contributors section
+        item {
+            Text("Risk contributors", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    RiskContributorRow("Apps", 0.31f, "31%", Color(0xFFC084FC))
+                    RiskContributorRow("Phishing exposure", 0.22f, "22%", Color(0xFFF87171))
+                    RiskContributorRow("Account hygiene", 0.15f, "15%", Color(0xFFFBBF24))
+                    RiskContributorRow("Network", 0.08f, "8%", Color(0xFF38BDF8))
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // Next actions section
+        item {
+            Text("Next actions", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CheckshieldItem("Review app permissions")
+                    CheckshieldItem("Enable security updates")
+                    CheckshieldItem("Complete privacy checkup")
                 }
             }
         }
@@ -1166,90 +2178,170 @@ private fun RiskScreen(nav: NavHostController, vm: MainSecurityViewModel) {
 }
 
 @Composable
-private fun FamilyProtectionScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item {
-            TopBar("Family Protection", nav)
-            SectionTitle("Multi-Device Posture", "Unified household threat status")
+private fun RiskContributorRow(label: String, progress: Float, valueStr: String, barColor: Color) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, color = Color(0xFFE2E8F0), fontSize = 12.sp)
+            Text(valueStr, color = Muted, fontSize = 12.sp)
         }
+        Spacer(Modifier.height(6.dp))
+        LinearProgressIndicator(
+            progress = { progress },
+            color = barColor,
+            trackColor = Color(0xFF1E2836),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .background(Color(0xFF1E2836), RoundedCornerShape(3.dp))
+        )
+    }
+}
+
+@Composable
+private fun FamilyProtectionScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    LazyColumn(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
         item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Registered Devices", fontWeight = FontWeight.Bold)
-                Text("Current Primary Device: Protected (Live)", color = Color(0xFF34D399), modifier = Modifier.padding(top = 4.dp))
-                Text("Tap to invite family member or link secondary tablet.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            FigmaSubHeader("Family protection", "Optional shared safety controls", nav)
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // Family mode Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color(0xFF122235), RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = Cyan, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Family mode", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Protect selected family members", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
+                    }
+                    Surface(
+                        color = Color.Transparent,
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Cyan),
+                        modifier = Modifier.clickable { nav.navigate("risk") }
+                    ) {
+                        Text(
+                            "SET UP",
+                            color = Cyan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
             }
+            Spacer(Modifier.height(18.dp))
+        }
+
+        // Protected members section
+        item {
+            Text("Protected members", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProtectedMemberCard("Mother", "Safe • 91", Color(0xFF00E676)) { nav.navigate("risk") }
+                ProtectedMemberCard("Father", "2 Alerts", Color(0xFFFBBF24)) { nav.navigate("alerts") }
+                ProtectedMemberCard("Child device", "Safe • 95", Color(0xFF00E676)) { nav.navigate("risk") }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+
+        // Guardian alerts Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.NotificationsNone, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Guardian alerts", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Notify only for high-risk events.", color = Muted, fontSize = 11.sp)
+                    }
+                    Surface(
+                        color = Color(0xFF0F2D1F),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            "Enabled",
+                            color = Color(0xFF00E676),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Consent and privacy controls remain with each member.",
+                color = Muted,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProtectedMemberCard(name: String, status: String, statusColor: Color, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Line),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(Color(0xFF16202C), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Person, contentDescription = null, tint = Color(0xFFC0D0E0), modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(status, color = statusColor, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
+            }
+            Text("View", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
 private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    val lastScan by vm.currentScanResult.collectAsState()
+    var selectedFilter by remember { mutableStateOf("ALL") }
 
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item {
-            TopBar("Scan History & Evidence", nav)
-            SectionTitle("Audit Trail", "Cryptographic verification of past checks")
-        }
-        lastScan?.let { res ->
-            val scoreColor = SentinelRiskColors.getColorForScore(res.securityScore)
-            val scoreStatus = SentinelRiskColors.getStatusForScore(res.securityScore)
-            item {
-                Card(
-                    onClick = { nav.navigate("url_protection") },
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, scoreColor.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                ) {
-                    Column(Modifier.padding(14.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(res.scannerType, fontWeight = FontWeight.Bold, color = Cyan, fontSize = 14.sp)
-                            Surface(
-                                color = scoreColor.copy(alpha = 0.16f),
-                                shape = RoundedCornerShape(50),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, scoreColor.copy(alpha = 0.8f))
-                            ) {
-                                Text(
-                                    scoreStatus,
-                                    color = scoreColor,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                        Text("Security Score: ${res.securityScore}/100 • Confidence: ${(res.confidence * 100).toInt()}%", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-                        Text(res.quickSummary?.ifBlank { res.explanation } ?: res.explanation, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-                        Text("Recorded: ${res.timestamp} • Tap to view report & chat", color = Cyan, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
-                    }
-                }
-            }
-        } ?: item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("No scans completed yet.", color = Muted, fontSize = 13.sp)
-                Button(
-                    onClick = { nav.navigate("scan") },
-                    colors = ButtonDefaults.buttonColors(containerColor = Cyan),
-                    modifier = Modifier.padding(top = 10.dp)
-                ) {
-                    Text("Run First Scan", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-        item {
-            GlassCard(Modifier.padding(top = 12.dp)) {
-                Text("Local Evidence Store", fontWeight = FontWeight.Bold)
-                Text("All completed scans are persisted with SHA-256 hashes and model versions. Embedded Sentinel AI conversations are preserved.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingsScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    val details = ScreenRegistry.all.filter { it.kind == "settings_detail" }
-    val extras = ScreenRegistry.byGroup["19 Settings"].orEmpty()
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -1257,21 +2349,363 @@ private fun SettingsScreen(nav: NavHostController, vm: MainSecurityViewModel) {
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            TopBar("Settings & Security", nav, false)
-            SectionTitle("Preferences & Policy", "Zero-trust privacy and scanning controls")
+            FigmaHeader(
+                title = "History",
+                subtitle = "Scans, incidents & evidence",
+                nav = nav,
+                showBell = true
+            )
+            Spacer(Modifier.height(4.dp))
         }
-        details.forEach { spec ->
-            item {
-                FeatureRow(spec.title, "Configure section") {
-                    nav.navigate("settings_detail/${spec.route}")
+
+        // Search bar
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardBg, RoundedCornerShape(12.dp))
+                    .border(1.dp, Line, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Search scans, URLs, incidents...", color = Muted, fontSize = 13.sp)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Filter chips
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Surface(
+                    color = if (selectedFilter == "ALL") Color(0xFF1F2937) else Color.Transparent,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, if (selectedFilter == "ALL") Color(0xFF374151) else Line),
+                    modifier = Modifier.clickable { selectedFilter = "ALL" }
+                ) {
+                    Text(
+                        "ALL",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    )
+                }
+
+                Surface(
+                    color = Color(0xFF2D1212),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.6f)),
+                    modifier = Modifier.clickable { selectedFilter = "HIGH RISK" }
+                ) {
+                    Text(
+                        "HIGH RISK",
+                        color = Color(0xFFFF5252),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+
+        // Recent activity section
+        item {
+            Text("Recent activity", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(10.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    // Item 1: Message scan
+                    HistoryItemRow(
+                        title = "Message scan",
+                        time = "09:12",
+                        status = "HIGH RISK",
+                        statusColor = Color(0xFFFF5252),
+                        statusBg = Color(0xFF2D1212),
+                        icon = Icons.Default.AccessTime,
+                        onClick = { nav.navigate("message_result") }
+                    )
+                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+
+                    // Item 2: Wi-Fi check
+                    HistoryItemRow(
+                        title = "Wi-Fi check",
+                        time = "08:41",
+                        status = "SAFE",
+                        statusColor = Color(0xFF00E676),
+                        statusBg = Color(0xFF0F2D1F),
+                        icon = Icons.Default.Wifi,
+                        onClick = { nav.navigate("network") }
+                    )
+                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+
+                    // Item 3: APK analysis
+                    HistoryItemRow(
+                        title = "APK analysis",
+                        time = "Yesterday",
+                        status = "SUSPICIOUS",
+                        statusColor = Color(0xFFFBBF24),
+                        statusBg = Color(0xFF2C2010),
+                        icon = Icons.Default.GridView,
+                        onClick = { nav.navigate("apps") }
+                    )
+                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+
+                    // Item 4: QR scan
+                    HistoryItemRow(
+                        title = "QR scan",
+                        time = "Yesterday",
+                        status = "SAFE",
+                        statusColor = Color(0xFF00E676),
+                        statusBg = Color(0xFF0F2D1F),
+                        icon = Icons.Default.QrCodeScanner,
+                        onClick = { nav.navigate("qr_payment") }
+                    )
+                    HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 10.dp))
+
+                    // Item 5: Payment screenshot
+                    HistoryItemRow(
+                        title = "Payment screenshot",
+                        time = "Sep 30",
+                        status = "HIGH RISK",
+                        statusColor = Color(0xFFFF5252),
+                        statusBg = Color(0xFF2D1212),
+                        icon = Icons.Default.Payments,
+                        onClick = { nav.navigate("qr_payment") }
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+
+        // Evidence vault Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Folder, contentDescription = null, tint = Cyan, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Evidence vault", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("14 encrypted items", color = Muted, fontSize = 11.sp)
+                    }
+                    Surface(
+                        color = Color.Transparent,
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Cyan),
+                        modifier = Modifier.clickable { /* Export */ }
+                    ) {
+                        Text(
+                            "EXPORT",
+                            color = Cyan,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
         }
-        item { Spacer(Modifier.height(12.dp)); SectionTitle("About & Version") }
-        items(extras) { spec ->
-            FeatureRow(spec.title, "View details") {
-                nav.navigate("feature/${spec.route}")
+    }
+}
+
+@Composable
+private fun HistoryItemRow(
+    title: String,
+    time: String,
+    status: String,
+    statusColor: Color,
+    statusBg: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = statusColor, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(time, color = Muted, fontSize = 11.sp)
             }
+        }
+        Surface(
+            color = statusBg,
+            shape = RoundedCornerShape(6.dp)
+        ) {
+            Text(
+                status,
+                color = statusColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    LazyColumn(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
+        item {
+            FigmaHeader(
+                title = "Settings",
+                subtitle = "Privacy, protection & account",
+                nav = nav,
+                showBell = true
+            )
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // Profile Card: Your account
+        item {
+            Card(
+                onClick = { nav.navigate("settings_detail/user_account") },
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .background(Color(0xFF122235), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = Cyan, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Your account", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Protected • app lock enabled", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // 8 Settings Menu items
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsMenuItem(
+                    title = "Protection",
+                    subtitle = "Real-time + scan schedule",
+                    icon = Icons.Default.Shield,
+                    iconColor = Cyan,
+                    onClick = { nav.navigate("settings_detail/realtime_protection_settings") }
+                )
+                SettingsMenuItem(
+                    title = "Notifications",
+                    subtitle = "Alerts + quiet hours",
+                    icon = Icons.Default.NotificationsNone,
+                    iconColor = Color(0xFFA855F7),
+                    onClick = { nav.navigate("settings_detail/notification_preferences") }
+                )
+                SettingsMenuItem(
+                    title = "Privacy",
+                    subtitle = "Permissions + retention",
+                    icon = Icons.Default.Lock,
+                    iconColor = Color(0xFF00E676),
+                    onClick = { nav.navigate("privacy") }
+                )
+                SettingsMenuItem(
+                    title = "AI settings",
+                    subtitle = "Models + explanations",
+                    icon = Icons.Default.AutoAwesome,
+                    iconColor = Cyan,
+                    onClick = { nav.navigate("ai") }
+                )
+                SettingsMenuItem(
+                    title = "Trusted devices",
+                    subtitle = "Sessions + emergency",
+                    icon = Icons.Default.PhoneAndroid,
+                    iconColor = Color(0xFFFBBF24),
+                    onClick = { nav.navigate("device") }
+                )
+                SettingsMenuItem(
+                    title = "Data & storage",
+                    subtitle = "Export + secure delete",
+                    icon = Icons.Default.Folder,
+                    iconColor = Color(0xFFFBBF24),
+                    onClick = { nav.navigate("storage") }
+                )
+                SettingsMenuItem(
+                    title = "Language",
+                    subtitle = "English • Telugu • Hindi",
+                    icon = Icons.Default.Language,
+                    iconColor = Color(0xFFA855F7),
+                    onClick = { nav.navigate("settings_detail/language_selector") }
+                )
+                SettingsMenuItem(
+                    title = "Security logs",
+                    subtitle = "Audit & access history",
+                    icon = Icons.Default.AccessTime,
+                    iconColor = Muted,
+                    onClick = { nav.navigate("history") }
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "CyberShield • Android consumer app",
+                color = Muted,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsMenuItem(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconColor: Color,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Line),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(subtitle, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp))
         }
     }
 }
