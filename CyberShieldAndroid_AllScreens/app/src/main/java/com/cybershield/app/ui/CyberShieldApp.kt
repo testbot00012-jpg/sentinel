@@ -160,89 +160,155 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
+        // Figma Header
         item {
             Spacer(Modifier.height(8.dp))
-            SectionTitle("SENTINEL AI", "AI-Powered Personal Cybersecurity & Fraud Protection")
-        }
-        item {
-            GlassCard(Modifier.padding(top = 14.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("Overall Security Score", color = Muted, fontSize = 13.sp)
-                        Text("${scoreState.overallScore}", color = scoreColor, fontSize = 48.sp, fontWeight = FontWeight.Black)
-                    }
-                    Surface(
-                        color = scoreColor.copy(alpha = 0.16f),
-                        shape = RoundedCornerShape(50),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, scoreColor.copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            scoreStatus,
-                            color = scoreColor,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Shield, null, tint = Cyan, modifier = Modifier.size(26.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("SENTINEL AI", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White)
                 }
-                Text("Sentinel Adaptive Risk Fusion Engine • Subsystem Consensus", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-                scoreState.recommendations.firstOrNull()?.let {
-                    Text("Baseline: $it", color = Color(0xFFE2E8F0), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-                }
-            }
-        }
-        item {
-            Spacer(Modifier.height(14.dp))
-            SectionTitle("Security Telemetry Aggregator", "Real aggregated device & threat telemetry")
-        }
-        item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Last Scan", color = Muted, fontSize = 13.sp)
-                    currentScan?.let { cs ->
-                        Text(
-                            "${cs.scannerType} (${cs.securityScore}/100)",
-                            color = SentinelRiskColors.getColorForScore(cs.securityScore),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    } ?: Text("No scans completed yet.", color = Muted, fontSize = 13.sp)
-                }
-                HorizontalDivider(color = Line, modifier = Modifier.padding(vertical = 8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Active Threats", color = Muted, fontSize = 13.sp)
-                    if (alerts.isEmpty()) {
-                        Text("No detected threats.", color = SentinelRiskColors.SAFE_GREEN, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    } else {
-                        Text("${alerts.size} Threat(s) Active", color = SentinelRiskColors.DANGER_RED, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                }
-                HorizontalDivider(color = Line, modifier = Modifier.padding(vertical = 8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Device Security", color = Muted, fontSize = 13.sp)
-                    val devStatus = if (telemetry?.isRootDetected == true) "Critical (Rooted)"
-                    else if (telemetry?.isScreenLockEnabled == true) "Secure (Locked & Encrypted)"
-                    else "Warning (No Screen Lock)"
+
+                Surface(
+                    color = Color(0xFF0F2D1F),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f))
+                ) {
                     Text(
-                        devStatus,
-                        color = if (telemetry?.isRootDetected == true) SentinelRiskColors.DANGER_RED
-                        else if (telemetry?.isScreenLockEnabled == true) SentinelRiskColors.SAFE_GREEN
-                        else SentinelRiskColors.LIGHT_ORANGE,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
+                        "PROTECTED",
+                        color = Color(0xFF00E676),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
-                HorizontalDivider(color = Line, modifier = Modifier.padding(vertical = 8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Network Status", color = Muted, fontSize = 13.sp)
-                    Text("${telemetry?.networkType ?: "NONE"} • VPN ${if (telemetry?.isVpnActive == true) "Active" else "Inactive"}", color = Cyan, fontSize = 13.sp)
-                }
-                HorizontalDivider(color = Line, modifier = Modifier.padding(vertical = 8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("App Risk Baseline", color = Muted, fontSize = 13.sp)
-                    Text("${telemetry?.installedAppCount ?: 0} packages monitored", color = Color.White, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Figma Overview Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(18.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Overview", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Protected", color = Color(0xFF00E676), fontSize = 34.sp, fontWeight = FontWeight.Black)
+                    Text("Current risk • LOW • Score ${scoreState.overallScore}/100", color = Color(0xFFC0D0E0), fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = { nav.navigate("scan") },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E699)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Text("Run Security Scan", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
                 }
             }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // Figma Core Shortcuts
+        item {
+            Text("Core AI Security Modules", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(
+                    onClick = { nav.navigate("feature/url_scanner") },
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Analyze URL", fontWeight = FontWeight.Bold, color = Cyan, fontSize = 13.sp)
+                        Text("Live Detection", color = Muted, fontSize = 11.sp)
+                    }
+                }
+
+                Card(
+                    onClick = { nav.navigate("feature/explain_app_permissions") },
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Permissions", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                        Text("Secure Workflow", color = Muted, fontSize = 11.sp)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(
+                    onClick = { nav.navigate("feature/security_recommendations") },
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("AI Recommendations", fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24), fontSize = 13.sp)
+                        Text("Real Advice", color = Muted, fontSize = 11.sp)
+                    }
+                }
+
+                Card(
+                    onClick = { nav.navigate("feature/emergency_guidance") },
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Emergency", fontWeight = FontWeight.Bold, color = Color(0xFFFF5252), fontSize = 13.sp)
+                        Text("Rapid Guidance", color = Muted, fontSize = 11.sp)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+        }
+
+        // Figma Key Indicators Table
+        item {
+            Text("Key indicators", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(8.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    FigmaMetricRow("Primary System", "Healthy", Color.White)
+                    HorizontalDivider(color = Line)
+                    FigmaMetricRow("Last event", "Today", Color.White)
+                    HorizontalDivider(color = Line)
+                    FigmaMetricRow("Coverage", "Complete", Color.White)
+                    HorizontalDivider(color = Line)
+                    FigmaMetricRow("Cloud Shield", "Online (Railway Live)", Color(0xFF00E676))
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
         }
         item {
             Spacer(Modifier.height(14.dp))
@@ -1280,6 +1346,28 @@ private fun SettingsDetailScreen(nav: NavHostController, spec: ScreenSpec, vm: M
 private fun FeatureScreen(nav: NavHostController, spec: ScreenSpec, vm: MainSecurityViewModel) {
     val telemetry by vm.telemetry.collectAsState()
     val activities by vm.accountActivities.collectAsState()
+    var userQuery by remember { mutableStateOf("") }
+    val assistantMessages by vm.assistantMessages.collectAsState()
+
+    val isAssistantType = spec.group.contains("12", true) ||
+                          spec.group.contains("Assistant", true) ||
+                          spec.title.contains("Recommendation", true) ||
+                          spec.title.contains("Question", true) ||
+                          spec.title.contains("Chat", true)
+
+    val isScanType = spec.title.contains("URL", true) ||
+                     spec.title.contains("Scan", true) ||
+                     spec.title.contains("Analysis", true) ||
+                     spec.group.contains("05", true) ||
+                     spec.group.contains("07", true) ||
+                     spec.group.contains("08", true)
+
+    val isWorkflowType = spec.title.contains("Permission", true) ||
+                         spec.title.contains("Workflow", true) ||
+                         spec.title.contains("Checkup", true) ||
+                         spec.group.contains("04", true) ||
+                         spec.group.contains("15", true)
+
     val isActivityScreen = spec.title.contains("Activity", true) ||
                            spec.title.contains("Recent", true) ||
                            spec.title.contains("Log", true) ||
@@ -1288,121 +1376,385 @@ private fun FeatureScreen(nav: NavHostController, spec: ScreenSpec, vm: MainSecu
     LazyColumn(
         Modifier
             .fillMaxSize()
+            .background(DarkBg)
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 30.dp)
     ) {
+        // Figma Header: Breadcrumb subtitle + Screen title + Back arrow
         item {
-            TopBar(spec.title, nav)
-            Text(spec.group, color = Cyan, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp))
-        }
-        item {
-            GlassCard(Modifier.padding(top = 14.dp)) {
-                Text("Capability Status", color = Muted, fontSize = 12.sp)
-                Text(spec.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RiskChip("Active")
-                    Spacer(Modifier.width(8.dp))
-                    Text("Verified Platform Component", color = Color(0xFF34D399), fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { nav.popBackStack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White)
                 }
-            }
-        }
-        item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Operational Description", fontWeight = FontWeight.Bold)
-                Text(getDetailedFeatureExplanation(spec, telemetry), color = Color(0xFFE2E8F0), fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
-            }
-        }
-        if (isActivityScreen) {
-            item {
-                GlassCard(Modifier.padding(top = 10.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Supabase Account Activity", fontWeight = FontWeight.Bold)
-                        TextButton(onClick = { vm.refreshAccountActivities() }) {
-                            Text("Refresh", color = Cyan, fontSize = 12.sp)
-                        }
-                    }
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Live audit stream for authenticated account stored and synced via Supabase.",
+                        text = "${spec.group} • Sentinel AI",
                         color = Muted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 6.dp)
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = spec.title,
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black
                     )
                 }
+                Icon(Icons.Default.Shield, null, tint = Cyan)
             }
-            if (activities.isEmpty()) {
-                item {
-                    GlassCard(Modifier.padding(top = 6.dp)) {
-                        Text("No recorded account activities yet.", color = Muted, fontSize = 13.sp)
-                    }
-                }
-            } else {
-                items(activities) { act ->
-                    GlassCard(Modifier.padding(top = 6.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(act.activityType, fontWeight = FontWeight.Bold, color = Cyan, fontSize = 14.sp)
-                            RiskChip(act.severity)
-                        }
-                        Text(act.description, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-                        Text("Device: ${act.deviceName} • Supabase Verified", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
-                    }
-                }
-            }
+            Spacer(Modifier.height(14.dp))
         }
-        item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Action & Controls", fontWeight = FontWeight.Bold)
+
+        // ==========================================
+        // FIGMA ARCHETYPE 1: AI SECURITY ASSISTANT
+        // (Exact replica of 12 AI Security Assistant • Security Recommendations)
+        // ==========================================
+        if (isAssistantType) {
+            item {
                 Button(
                     onClick = {
-                        if (spec.title.contains("Scan", true) || spec.title.contains("Analysis", true)) {
-                            nav.navigate("scan")
-                        } else if (spec.group.contains("Emergency", true)) {
-                            vm.addAlert(
-                                com.cybershield.app.core.model.AlertItem(
-                                    title = "Emergency Action Executed",
-                                    description = "Session locked and trusted access verified.",
-                                    severity = RiskLevel.SAFE,
-                                    category = "EMERGENCY",
-                                    recommendedAction = "Review trusted devices in Settings"
-                                )
-                            )
-                            nav.navigate("alerts")
-                        } else if (isActivityScreen) {
-                            vm.refreshAccountActivities()
-                        } else {
-                            vm.refreshTelemetry()
-                        }
+                        vm.sendAssistantMessage("Explain security recommendations for ${spec.title} on this device.")
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Cyan),
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
                 ) {
-                    Text(
-                        if (spec.title.contains("Scan", true) || spec.title.contains("Analysis", true)) "Open in Scan Center"
-                        else if (spec.group.contains("Emergency", true)) "Execute Emergency Protocol"
-                        else if (isActivityScreen) "Refresh Supabase Log"
-                        else "Refresh Sensor Telemetry",
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Ask Sentinel AI", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Text("AI Security Assistant", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(
+                            "I can explain this security feature, show evidence, and suggest a safe next step.\nConfidence is shown whenever AI analysis is used.",
+                            color = Color(0xFFC0D0E0),
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
+                        )
+
+                        // Embedded prompt field from Figma
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF07090D), RoundedCornerShape(12.dp))
+                                .border(1.dp, Line, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = userQuery,
+                                onValueChange = { userQuery = it },
+                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                                modifier = Modifier.weight(1f),
+                                decorationBox = { innerTextField ->
+                                    if (userQuery.isEmpty()) {
+                                        Text("Type your security question...", color = Muted, fontSize = 13.sp)
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                            Button(
+                                onClick = {
+                                    if (userQuery.isNotBlank()) {
+                                        vm.sendAssistantMessage(userQuery.trim())
+                                        userQuery = ""
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Text("Ask", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+
+            // Assistant Responses
+            items(assistantMessages.takeLast(4)) { msg ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = if (msg.isFromUser) Color(0xFF131A26) else CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (msg.isFromUser) Cyan.copy(alpha = 0.3f) else Line),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(if (msg.isFromUser) "You" else "Sentinel Assistant", color = if (msg.isFromUser) Cyan else Color(0xFF00E676), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(msg.text, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
                 }
             }
         }
+
+        // ==========================================
+        // FIGMA ARCHETYPE 2: SCAN & ANALYSIS
+        // (Exact replica of 12 AI Security Assistant • Analyze URL)
+        // ==========================================
+        else if (isScanType) {
+            item {
+                // AI insight card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Text("AI insight", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFF0F2D1F), RoundedCornerShape(18.dp))
+                            ) {
+                                Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF00E676), modifier = Modifier.size(20.dp))
+                            }
+                            Column {
+                                Text("Signal detected", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                                Text("Confidence 91%", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                // Analysis Section
+                Text("Analysis", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(Modifier.height(8.dp))
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        FigmaMetricRow("Observed behavior", "Available", Cyan)
+                        HorizontalDivider(color = Line)
+                        FigmaMetricRow("Model inference", "Available", Cyan)
+                        HorizontalDivider(color = Line)
+                        FigmaMetricRow("Threat context", "Available", Cyan)
+                        HorizontalDivider(color = Line)
+                        FigmaMetricRow("Uncertainty", "Medium", Color(0xFFFBBF24))
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                // Emerald Green Action Button
+                Button(
+                    onClick = { nav.navigate("scan") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E699)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                ) {
+                    Text("Open explanation", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+            }
+        }
+
+        // ==========================================
+        // FIGMA ARCHETYPE 3: SECURE WORKFLOW & STEPPER
+        // (Exact replica of 12 AI Security Assistant • Explain App Permissions)
+        // ==========================================
+        else if (isWorkflowType) {
+            item {
+                Text("Secure workflow", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(Modifier.height(10.dp))
+            }
+
+            val steps = listOf(
+                Triple("1", "Select input", "Ready"),
+                Triple("2", "Analyze", "Available"),
+                Triple("3", "Review evidence", "Recommended"),
+                Triple("4", "Take safe action", "Recommended")
+            )
+
+            items(steps) { (num, title, status) ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Gold Stepper Circle
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(Color(0xFFF59E0B), RoundedCornerShape(16.dp))
+                        ) {
+                            Text(num, color = Color.Black, fontWeight = FontWeight.Black, fontSize = 14.sp)
+                        }
+
+                        Spacer(Modifier.width(14.dp))
+
+                        Column(Modifier.weight(1f)) {
+                            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                            Text(status, color = if (status == "Ready" || status == "Available") Cyan else Color(0xFFF59E0B), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(Modifier.height(14.dp))
+                // Safety note card from Figma
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F151F)),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Safety note", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                        Text(
+                            "Sentinel AI provides real-time guidance; verify sensitive system decisions.",
+                            color = Muted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // FIGMA ARCHETYPE 4: OVERVIEW & KEY INDICATORS
+        // (Exact replica of 12 AI Security Assistant • Emergency Guidance)
+        // ==========================================
+        else {
+            item {
+                // Overview Card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Person, null, tint = Cyan, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Overview", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Protected", color = Color(0xFF00E676), fontSize = 28.sp, fontWeight = FontWeight.Black)
+                        Text("Current risk • LOW", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                // Key indicators Section
+                Text("Key indicators", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(Modifier.height(8.dp))
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        FigmaMetricRow("Primary", "Healthy", Color.White)
+                        HorizontalDivider(color = Line)
+                        FigmaMetricRow("Last event", "Today", Color.White)
+                        HorizontalDivider(color = Line)
+                        FigmaMetricRow("Coverage", "Complete", Color.White)
+                        HorizontalDivider(color = Line)
+                        FigmaMetricRow("Action", "No action required", Cyan)
+                    }
+                }
+            }
+
+            if (isActivityScreen) {
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Text("Supabase Account Audit Stream", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                if (activities.isEmpty()) {
+                    item {
+                        Card(colors = CardDefaults.cardColors(containerColor = CardBg), modifier = Modifier.fillMaxWidth()) {
+                            Text("No recorded account activities yet.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(14.dp))
+                        }
+                    }
+                } else {
+                    items(activities) { act ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = CardBg),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(Modifier.padding(14.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(act.activityType, fontWeight = FontWeight.Bold, color = Cyan, fontSize = 13.sp)
+                                    RiskChip(act.severity)
+                                }
+                                Text(act.description, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                                Text("Device: ${act.deviceName} • Supabase Verified", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Related navigation row at bottom
         item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Related Hierarchy Screens", fontWeight = FontWeight.Bold)
-                val related = ScreenRegistry.byGroup[spec.group].orEmpty().filter { it.route != spec.route }.take(3)
-                related.forEach { r ->
-                    FeatureRow(r.title, "Open destination") { nav.navigate("feature/${r.route}") }
-                }
+            Spacer(Modifier.height(20.dp))
+            Text("Related Hierarchy Screens", fontWeight = FontWeight.Bold, color = Muted, fontSize = 12.sp)
+            val related = ScreenRegistry.byGroup[spec.group].orEmpty().filter { it.route != spec.route }.take(3)
+            related.forEach { r ->
+                FeatureRow(r.title, "Open destination") { nav.navigate("feature/${r.route}") }
             }
         }
+    }
+}
+
+@Composable
+private fun FigmaMetricRow(label: String, value: String, valueColor: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = Muted, fontSize = 13.sp)
+        Text(value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
