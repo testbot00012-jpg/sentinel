@@ -77,6 +77,17 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     private val _currentUserEmail = MutableStateFlow<String?>("user@sentinelai.security")
     val currentUserEmail: StateFlow<String?> = _currentUserEmail.asStateFlow()
 
+    private val _serverUrl = MutableStateFlow(apiClient.getBaseUrl())
+    val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
+
+    fun updateServerUrl(newUrl: String) {
+        if (newUrl.isNotBlank()) {
+            apiClient.setBaseUrl(newUrl.trim())
+            _serverUrl.value = apiClient.getBaseUrl()
+            refreshAccountActivities()
+        }
+    }
+
     init {
         refreshTelemetry()
         refreshAccountActivities()

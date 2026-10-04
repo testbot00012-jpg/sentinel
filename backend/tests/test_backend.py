@@ -25,7 +25,7 @@ async def test_health_check(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "HEALTHY"
-    assert "CyberShield" in data["service"]
+    assert "Sentinel AI" in data["service"]
 
 @pytest.mark.asyncio
 async def test_auth_and_device_flow(client):

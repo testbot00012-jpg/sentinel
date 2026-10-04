@@ -1202,6 +1202,9 @@ private fun SettingsScreen(nav: NavHostController, vm: MainSecurityViewModel) {
 private fun SettingsDetailScreen(nav: NavHostController, spec: ScreenSpec, vm: MainSecurityViewModel) {
     val currentEmail by vm.currentUserEmail.collectAsState()
     val authStatus by vm.authStatus.collectAsState()
+    val serverUrl by vm.serverUrl.collectAsState()
+    var customUrlInput by remember { mutableStateOf(serverUrl) }
+
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -1216,6 +1219,30 @@ private fun SettingsDetailScreen(nav: NavHostController, spec: ScreenSpec, vm: M
                 if (spec.title.contains("Account", true)) {
                     Text("User: ${currentEmail ?: "user@sentinelai.security"}", color = Cyan, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                     Text("Provider: Supabase Auth & PostgreSQL", color = Color(0xFF34D399), fontSize = 12.sp)
+                }
+                Text("Backend Gateway: $serverUrl", color = Cyan, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        if (spec.title.contains("Network", true) || spec.title.contains("Protection", true)) {
+            item {
+                GlassCard(Modifier.padding(top = 8.dp)) {
+                    Text("Cloud Gateway URL (Railway)", fontWeight = FontWeight.SemiBold)
+                    Text("Connect to your deployed Railway backend to protect all physical devices over the internet.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customUrlInput,
+                        onValueChange = { customUrlInput = it },
+                        label = { Text("Railway URL (e.g. https://sentinel.up.railway.app)", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = { vm.updateServerUrl(customUrlInput) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Connect to Gateway", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             }
         }

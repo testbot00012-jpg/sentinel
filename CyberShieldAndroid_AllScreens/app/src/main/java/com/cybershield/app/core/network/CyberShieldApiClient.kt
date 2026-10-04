@@ -13,9 +13,23 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
-class CyberShieldApiClient(private val baseUrl: String = "http://10.0.2.2:8000/api/v1") {
+class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
+
+    companion object {
+        var CUSTOM_BASE_URL: String? = null
+        val DEFAULT_URL: String
+            get() = CUSTOM_BASE_URL ?: "http://10.0.2.2:8000/api/v1"
+    }
 
     private var authToken: String? = null
+
+    fun setBaseUrl(newUrl: String) {
+        val trimmed = newUrl.trimEnd('/')
+        this.baseUrl = if (trimmed.endsWith("/api/v1")) trimmed else "$trimmed/api/v1"
+        CUSTOM_BASE_URL = this.baseUrl
+    }
+
+    fun getBaseUrl(): String = baseUrl
 
     fun setAuthToken(token: String) {
         this.authToken = token
