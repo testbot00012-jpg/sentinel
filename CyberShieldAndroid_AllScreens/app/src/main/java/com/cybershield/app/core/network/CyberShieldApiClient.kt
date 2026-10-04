@@ -18,7 +18,7 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
     companion object {
         var CUSTOM_BASE_URL: String? = null
         val DEFAULT_URL: String
-            get() = CUSTOM_BASE_URL ?: "http://10.0.2.2:8000/api/v1"
+            get() = CUSTOM_BASE_URL ?: "https://sentinel-production-96cf.up.railway.app/api/v1"
     }
 
     private var authToken: String? = null
