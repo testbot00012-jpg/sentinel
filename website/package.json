@@ -1,0 +1,19 @@
+{
+  "name": "sentinel-ai-web",
+  "version": "1.0.0",
+  "description": "Sentinel AI Security Platform - Enterprise Web Dashboard",
+  "main": "server.py",
+  "scripts": {
+    "start": "python server.py 3000",
+    "serve": "npx -y serve . -p 3000"
+  },
+  "keywords": [
+    "cybersecurity",
+    "phishing",
+    "deepfake",
+    "fraud-prevention",
+    "sentinel-ai"
+  ],
+  "author": "Sentinel AI Team",
+  "license": "UNLICENSED"
+}

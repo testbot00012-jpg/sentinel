@@ -1,9 +1,7 @@
-import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
+
 import logging
 
 from app.config.settings import settings
@@ -41,26 +39,6 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Mount web directory if it exists
-workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-web_dir = os.path.join(workspace_root, "web")
-web_static_dir = os.path.join(web_dir, "static")
-
-if os.path.exists(web_static_dir):
-    app.mount("/static", StaticFiles(directory=web_static_dir), name="static")
-
-@app.get("/")
-async def serve_index():
-    index_file = os.path.join(web_dir, "index.html")
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
-    return {
-        "status": "HEALTHY",
-        "service": settings.PROJECT_NAME,
-        "version": settings.VERSION,
-        "environment": settings.ENV
-    }
-
 @app.get("/health")
 async def health_check():
     return {
@@ -73,4 +51,5 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+
 

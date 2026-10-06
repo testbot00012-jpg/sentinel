@@ -5,13 +5,14 @@
 
 class SentinelApiClient {
   constructor() {
-    // Automatically detect backend URL (same host or localhost:8000 fallback)
-    const isLocalhostFile = window.location.protocol === 'file:';
-    this.baseUrl = isLocalhostFile ? 'http://localhost:8000/api/v1' : '/api/v1';
+    // Connect directly to Sentinel AI FastAPI backend API
+    this.baseUrl = window.SENTINEL_API_URL || 'http://localhost:8000/api/v1';
     this.tokenKey = 'sentinel_auth_token';
     this.userKey = 'sentinel_user_profile';
     this.deviceIdKey = 'sentinel_device_id';
   }
+
+
 
   getToken() {
     return localStorage.getItem(this.tokenKey) || null;
