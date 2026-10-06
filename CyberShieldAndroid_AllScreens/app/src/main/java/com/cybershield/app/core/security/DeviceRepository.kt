@@ -244,6 +244,14 @@ class DeviceRepository(private val context: Context) {
                     dangerousList.add("Install Apps")
                     reasons.add("Background APK installation requests")
                 }
+                if (perms.any { it.contains("STORAGE") || it.contains("READ_MEDIA") }) {
+                    dangerousList.add("Storage")
+                    reasons.add("Accesses device files, photos, or documents")
+                }
+                if (perms.any { it.contains("READ_PHONE_STATE") || it.contains("CALL_PHONE") }) {
+                    dangerousList.add("Phone")
+                    reasons.add("Accesses telephony, phone state, and dialer")
+                }
 
                 // Classification strictly honoring requirement:
                 // System Apps -> SAFE (Green, 90+ score)
@@ -303,13 +311,40 @@ class DeviceRepository(private val context: Context) {
                         securityScore = securityScore,
                         isRisky = isRisky,
                         riskLevel = riskLevel,
-                        riskReasons = reasons
+                        riskReasons = reasons,
+                        requestedPermissions = perms
                     )
                 )
             }
         } catch (_: Exception) {}
 
         return list.sortedWith(compareByDescending<InspectedAppInfo> { it.isRisky }.thenBy { it.appName })
+    }
+
+    fun getAppsWithPermission(permissionCategory: String): List<InspectedAppInfo> {
+        val all = inspectInstalledApps(includeSystem = true)
+        val cat = permissionCategory.lowercase()
+        return all.filter { app ->
+            when {
+                cat.contains("camera") -> app.dangerousPermissions.any { it.contains("Camera", true) } ||
+                        app.requestedPermissions.any { it.contains("CAMERA", true) }
+                cat.contains("microphone") || cat.contains("mic") || cat.contains("audio") -> app.dangerousPermissions.any { it.contains("Microphone", true) } ||
+                        app.requestedPermissions.any { it.contains("RECORD_AUDIO", true) }
+                cat.contains("location") || cat.contains("gps") -> app.dangerousPermissions.any { it.contains("Location", true) || it.contains("GPS", true) } ||
+                        app.requestedPermissions.any { it.contains("LOCATION", true) }
+                cat.contains("contact") -> app.dangerousPermissions.any { it.contains("Contact", true) } ||
+                        app.requestedPermissions.any { it.contains("CONTACTS", true) }
+                cat.contains("sms") -> app.dangerousPermissions.any { it.contains("SMS", true) } ||
+                        app.requestedPermissions.any { it.contains("SMS", true) }
+                cat.contains("phone") || cat.contains("call") -> app.dangerousPermissions.any { it.contains("Call", true) || it.contains("Phone", true) } ||
+                        app.requestedPermissions.any { it.contains("CALL", true) || it.contains("PHONE", true) }
+                cat.contains("storage") || cat.contains("file") || cat.contains("media") -> app.dangerousPermissions.any { it.contains("Storage", true) } ||
+                        app.requestedPermissions.any { it.contains("STORAGE", true) || it.contains("MEDIA", true) }
+                cat.contains("accessibility") -> app.dangerousPermissions.any { it.contains("Accessibility", true) } ||
+                        app.requestedPermissions.any { it.contains("ACCESSIBILITY", true) || it.contains("SYSTEM_ALERT_WINDOW", true) }
+                else -> app.dangerousPermissions.any { it.contains(permissionCategory, true) }
+            }
+        }
     }
 
     fun calculateAppStorageFormatted(): String {
@@ -371,5 +406,6 @@ data class InspectedAppInfo(
     val securityScore: Int,
     val isRisky: Boolean,
     val riskLevel: String,
-    val riskReasons: List<String>
+    val riskReasons: List<String>,
+    val requestedPermissions: List<String> = emptyList()
 )

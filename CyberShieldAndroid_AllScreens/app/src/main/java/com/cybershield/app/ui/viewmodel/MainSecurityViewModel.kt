@@ -77,7 +77,7 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     private val authPrefs = application.getSharedPreferences("cybershield_auth_prefs", android.content.Context.MODE_PRIVATE)
     private val settingsPrefs = application.getSharedPreferences("cybershield_settings_prefs", android.content.Context.MODE_PRIVATE)
 
-    private val _isLoggedIn = MutableStateFlow(authPrefs.getBoolean("is_logged_in", true))
+    private val _isLoggedIn = MutableStateFlow(authPrefs.getBoolean("is_logged_in", false))
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
     private val _authStatus = MutableStateFlow<String?>(null)
@@ -152,15 +152,52 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     init {
         refreshTelemetry()
         refreshAccountActivities()
-        refreshInspectedApps(false)
+        refreshInspectedApps(true)
         refreshStorageInfo()
     }
 
-    fun refreshInspectedApps(includeSystem: Boolean = false) {
+    fun refreshInspectedApps(includeSystem: Boolean = true) {
         viewModelScope.launch {
             val list = deviceRepository.inspectInstalledApps(includeSystem)
             _inspectedApps.value = list
         }
+    }
+
+    fun getAppsWithPermission(permissionCategory: String): List<com.cybershield.app.core.security.InspectedAppInfo> {
+        val current = _inspectedApps.value
+        return if (current.isNotEmpty()) {
+            val cat = permissionCategory.lowercase()
+            current.filter { app ->
+                when {
+                    cat.contains("camera") -> app.dangerousPermissions.any { it.contains("Camera", true) } ||
+                            app.requestedPermissions.any { it.contains("CAMERA", true) }
+                    cat.contains("microphone") || cat.contains("mic") || cat.contains("audio") -> app.dangerousPermissions.any { it.contains("Microphone", true) } ||
+                            app.requestedPermissions.any { it.contains("RECORD_AUDIO", true) }
+                    cat.contains("location") || cat.contains("gps") -> app.dangerousPermissions.any { it.contains("Location", true) || it.contains("GPS", true) } ||
+                            app.requestedPermissions.any { it.contains("LOCATION", true) }
+                    cat.contains("contact") -> app.dangerousPermissions.any { it.contains("Contact", true) } ||
+                            app.requestedPermissions.any { it.contains("CONTACTS", true) }
+                    cat.contains("sms") -> app.dangerousPermissions.any { it.contains("SMS", true) } ||
+                            app.requestedPermissions.any { it.contains("SMS", true) }
+                    cat.contains("phone") || cat.contains("call") -> app.dangerousPermissions.any { it.contains("Call", true) || it.contains("Phone", true) } ||
+                            app.requestedPermissions.any { it.contains("CALL", true) || it.contains("PHONE", true) }
+                    cat.contains("storage") || cat.contains("file") || cat.contains("media") -> app.dangerousPermissions.any { it.contains("Storage", true) } ||
+                            app.requestedPermissions.any { it.contains("STORAGE", true) || it.contains("MEDIA", true) }
+                    cat.contains("accessibility") -> app.dangerousPermissions.any { it.contains("Accessibility", true) } ||
+                            app.requestedPermissions.any { it.contains("ACCESSIBILITY", true) || it.contains("SYSTEM_ALERT_WINDOW", true) }
+                    else -> app.dangerousPermissions.any { it.contains(permissionCategory, true) }
+                }
+            }
+        } else {
+            deviceRepository.getAppsWithPermission(permissionCategory)
+        }
+    }
+
+    fun getPrivacyScore(): Int {
+        val apps = _inspectedApps.value
+        val dangerousSideloaded = apps.count { it.isRisky }
+        val baseScore = 96 - (dangerousSideloaded * 6)
+        return baseScore.coerceIn(40, 99)
     }
 
     fun refreshStorageInfo() {

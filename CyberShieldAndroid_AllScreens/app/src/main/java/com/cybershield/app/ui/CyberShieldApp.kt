@@ -104,12 +104,36 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
                 val spec = ScreenRegistry.find(route)
                 SettingsDetailScreen(nav, spec, viewModel)
             }
+            composable("permission_detail/{permission}") { backStack ->
+                val perm = backStack.arguments?.getString("permission") ?: "Camera"
+                PermissionPrivacyDetailScreen(perm, nav, viewModel)
+            }
             composable("feature/{route}") { backStack ->
                 val route = backStack.arguments?.getString("route") ?: ""
                 if (route == "ai_media_scanner") {
                     MediaDeepfakeScanScreen(nav, viewModel)
                 } else if (route == "scam_call_identifier") {
                     ResultScreen(nav, "Scam Call & Caller ID Risk", viewModel)
+                } else if (route.startsWith("04-permission-and-privacy-")) {
+                    val permName = when {
+                        route.contains("camera") -> "Camera"
+                        route.contains("microphone") -> "Microphone"
+                        route.contains("location") -> "Location"
+                        route.contains("contacts") -> "Contacts"
+                        route.contains("sms") -> "SMS"
+                        route.contains("phone") -> "Phone"
+                        route.contains("storage") -> "Storage"
+                        route.contains("accessibility") -> "Accessibility"
+                        route.contains("notifications") -> "Notifications"
+                        route.contains("background") -> "Background Activity"
+                        route.contains("privacy-risk") -> "Privacy Risk Score"
+                        else -> "Camera"
+                    }
+                    if (permName == "Privacy Risk Score") {
+                        PrivacyCenterScreen(nav, viewModel)
+                    } else {
+                        PermissionPrivacyDetailScreen(permName, nav, viewModel)
+                    }
                 } else if (route.startsWith("19-settings-") || route.startsWith("settings-detail-")) {
                     val spec = ScreenRegistry.find(route)
                     SettingsDetailScreen(nav, spec, viewModel)
@@ -120,7 +144,27 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
             }
             composable("screen/{route}") { backStack ->
                 val route = backStack.arguments?.getString("route") ?: ""
-                if (route.startsWith("19-settings-") || route.startsWith("settings-detail-")) {
+                if (route.startsWith("04-permission-and-privacy-")) {
+                    val permName = when {
+                        route.contains("camera") -> "Camera"
+                        route.contains("microphone") -> "Microphone"
+                        route.contains("location") -> "Location"
+                        route.contains("contacts") -> "Contacts"
+                        route.contains("sms") -> "SMS"
+                        route.contains("phone") -> "Phone"
+                        route.contains("storage") -> "Storage"
+                        route.contains("accessibility") -> "Accessibility"
+                        route.contains("notifications") -> "Notifications"
+                        route.contains("background") -> "Background Activity"
+                        route.contains("privacy-risk") -> "Privacy Risk Score"
+                        else -> "Camera"
+                    }
+                    if (permName == "Privacy Risk Score") {
+                        PrivacyCenterScreen(nav, viewModel)
+                    } else {
+                        PermissionPrivacyDetailScreen(permName, nav, viewModel)
+                    }
+                } else if (route.startsWith("19-settings-") || route.startsWith("settings-detail-")) {
                     val spec = ScreenRegistry.find(route)
                     SettingsDetailScreen(nav, spec, viewModel)
                 } else {
@@ -566,7 +610,7 @@ private fun QuickActionCard(
 
 @Composable
 private fun ProtectScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    FamilyProtectionScreen(nav, vm)
+    PrivacyCenterScreen(nav, vm)
 }
 
 @Composable
@@ -2744,27 +2788,7 @@ private fun AppsManagerScreen(nav: NavHostController, vm: MainSecurityViewModel)
     FullAppsManagerScreen(nav, vm)
 }
 
-@Composable
-private fun PrivacyCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    val permissions = listOf("Camera", "Microphone", "Location", "Contacts", "SMS", "Phone", "Storage", "Notifications", "Accessibility", "Privacy Risk Score")
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        item {
-            TopBar("Privacy Center", nav)
-            SectionTitle("Permission Exposure", "Contextual privacy risk model")
-        }
-        items(permissions) { name ->
-            val spec = ScreenRegistry.all.firstOrNull { it.title == name }
-            FeatureRow(name, "Inspect permission risk") {
-                if (spec != null) nav.navigate("feature/${spec.route}")
-            }
-        }
-    }
-}
+
 
 @Composable
 private fun StorageManagerScreen(nav: NavHostController, vm: MainSecurityViewModel) {

@@ -332,15 +332,15 @@ private fun SettingsHubMenuItem(
 fun UnifiedSettingsDetailScreen(nav: NavHostController, spec: ScreenSpec, vm: MainSecurityViewModel) {
     val r = spec.route.lowercase()
     when {
+        r.contains("01") || r.contains("account") || r.contains("profile") -> AccountProfileDetailScreen(nav, vm)
         r.contains("02") || r.contains("protection") -> ProtectionDetailScreen(nav, vm)
         r.contains("03") || r.contains("notification") -> NotificationsDetailScreen(nav, vm)
         r.contains("04") || r.contains("privacy") -> PrivacyDetailScreen(nav, vm)
-        r.contains("05") || r.contains("ai") -> AiSettingsDetailScreen(nav, vm)
-        r.contains("06") || r.contains("trusted") || r.contains("device") -> TrustedDevicesDetailScreen(nav, vm)
+        r.contains("05") || r.contains("-ai") || r.endsWith("ai") || r.contains("ai-settings") -> AiSettingsDetailScreen(nav, vm)
+        r.contains("06") || r.contains("trusted") -> TrustedDevicesDetailScreen(nav, vm)
         r.contains("07") || r.contains("data") || r.contains("storage") -> DataStorageDetailScreen(nav, vm)
         r.contains("08") || r.contains("language") -> LanguageDetailScreen(nav, vm)
         r.contains("09") || r.contains("log") -> SecurityLogsDetailScreen(nav, vm)
-        r.contains("01") || r.contains("account") || r.contains("profile") -> AccountProfileDetailScreen(nav, vm)
         r.contains("scan-settings") -> ScanSettingsDetailScreen(nav, vm)
         r.contains("about") -> AboutDetailScreen(nav, vm)
         else -> ProtectionDetailScreen(nav, vm)
