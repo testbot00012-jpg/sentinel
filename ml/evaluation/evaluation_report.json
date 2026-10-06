@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-04T10:41:57.513048+00:00",
+  "generated_at": "2026-10-06T10:07:38.943900+00:00",
   "pipeline_status": "COMPLETED_SUCCESSFULLY",
   "models": {
     "url_detector": {
@@ -13,7 +13,7 @@
       "f1": 0.9987,
       "roc_auc": 1.0,
       "pr_auc": 1.0,
-      "training_time_sec": 0.63
+      "training_time_sec": 0.47
     },
     "sms_detector": {
       "model_name": "CyberShield-MultiLang-ScamNLP",
@@ -45,6 +45,34 @@
       "algorithm": "IsolationForest",
       "samples_trained": 1000,
       "contamination": 0.03
+    },
+    "deepfake_detector": {
+      "model_name": "CyberShield-Deepfake-Ensemble-VisionForensics",
+      "version": "2.4.0",
+      "algorithm": "GradientBoostingClassifier (12 Multi-Spectral Spatial Forensic Features)",
+      "samples_evaluated": 2000,
+      "total_dataset_size": 10000,
+      "feature_count": 12,
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "feature_importances": {
+        "spatial_freq_decay": 0.0,
+        "prnu_sensor_noise_snr": 0.0998,
+        "corneal_specular_symmetry": 0.1071,
+        "dermis_pore_texture_density": 0.1287,
+        "face_edge_discontinuity": 0.2251,
+        "color_channel_cov": 0.1818,
+        "blinking_cadence": 0.0039,
+        "lens_aberration": 0.0486,
+        "jpeg_grid_consistency": 0.0247,
+        "biological_pulse_rppg": 0.118,
+        "lighting_normal_coherence": 0.0211,
+        "generative_latent_residual": 0.0412
+      }
     }
   }
 }

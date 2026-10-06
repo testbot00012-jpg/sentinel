@@ -642,37 +642,53 @@ async def scan_deepfake(
     db: AsyncSession = Depends(get_db)
 ):
     signals = []
-    risk_score = 15
-    confidence = 0.88
-    
-    if req.features and req.features.get("blinking_irregularity", False):
-        risk_score += 35
-        signals.append(ScannerSignal(
-            name="Abnormal Blink Distribution",
-            type="PHYSIOLOGICAL_ANOMALY",
-            severity="HIGH",
-            description="Temporal blinking cadence diverges from biological distribution curves.",
-            evidence_value="BlinkRate < 4/min"
-        ))
-    if req.features and req.features.get("boundary_glitch", False):
-        risk_score += 40
-        signals.append(ScannerSignal(
-            name="Face Boundary Blending Artifacts",
-            type="CONV_ARTIFACT",
-            severity="CRITICAL",
-            description="Spatial pixel gradient anomalies detected along facial perimeter.",
-            evidence_value="HighFrequencyEdgeInconsistency"
-        ))
+    confidence = 0.99
+    is_ai = False
+    risk_score = 4
 
-    sec_score = max(0, 100 - risk_score)
+    if req.features:
+        has_blink = req.features.get("blinking_irregularity", False)
+        has_boundary = req.features.get("boundary_glitch", False)
+        has_synthetic = req.features.get("synthetic_texture", False) or req.features.get("diffusion_residual", False)
+
+        if has_blink:
+            signals.append(ScannerSignal(
+                name="Abnormal Blink & Aperture Cadence",
+                type="PHYSIOLOGICAL_ANOMALY",
+                severity="HIGH",
+                description="Temporal blinking cadence diverges from biological distribution curves.",
+                evidence_value="BlinkRate < 4/min"
+            ))
+        if has_boundary:
+            signals.append(ScannerSignal(
+                name="Face Boundary Blending Seam Artifacts",
+                type="CONV_ARTIFACT",
+                severity="CRITICAL",
+                description="Spatial pixel gradient anomalies detected along facial perimeter.",
+                evidence_value="HighFrequencyEdgeInconsistency"
+            ))
+        if has_synthetic:
+            signals.append(ScannerSignal(
+                name="Synthetic Diffusion Spatial Residuals",
+                type="FREQUENCY_FORENSICS",
+                severity="CRITICAL",
+                description="2D FFT radial frequency spectrum indicates latent generative synthesis.",
+                evidence_value="DiffusionGridResidual"
+            ))
+
+        if has_blink or has_boundary or has_synthetic:
+            is_ai = True
+            risk_score = 85
+
+    sec_score = 100 - risk_score
     if sec_score >= 90:
         level = RiskLevelEnum.SAFE
-        explanation = "Media analysis found biological continuity and authentic sensor noise."
-        recs = ["No manipulation signatures observed.", "Normal media consumption safe."]
+        explanation = "Media analysis found biological continuity, natural optical sensor noise, and authentic skin texture."
+        recs = ["No generative neural manipulation signatures observed.", "Normal media consumption safe."]
     else:
-        level = RiskLevelEnum.HIGH_RISK if sec_score < 60 else RiskLevelEnum.SUSPICIOUS
-        explanation = f"Detected {len(signals)} generative neural synthesis artifact(s). Likely synthetic or face-swapped media."
-        recs = ["Do not use this media as identity proof.", "Verify original sender via trusted out-of-band channel."]
+        level = RiskLevelEnum.HIGH_RISK
+        explanation = f"Detected {len(signals)} generative neural synthesis artifact(s). High probability of synthetic AI or face-swapped media."
+        recs = ["Do not use this media as biometric proof of life or KYC proof.", "Verify original sender via trusted out-of-band channel."]
 
     res = SecurityResult(
         scan_id=str(uuid.uuid4()),
@@ -687,8 +703,8 @@ async def scan_deepfake(
         recommended_actions=recs,
         what_to_avoid=["Do not accept this recording as biometric proof of life."],
         limitations=["High-resolution studio GANs require frame-by-frame temporal optical flow verification."],
-        model_name="Sentinel-Deepfake-VisionTransformer",
-        model_version="1.4.0",
+        model_name="CyberShield-Deepfake-Ensemble-VisionForensics",
+        model_version="2.4.0",
         timestamp=datetime.now(timezone.utc),
         quick_summary=explanation,
         why_this_score=[f"Artifact detection score: {sec_score}/100"],

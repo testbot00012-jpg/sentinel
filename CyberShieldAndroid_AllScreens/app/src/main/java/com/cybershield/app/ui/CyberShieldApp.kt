@@ -748,19 +748,17 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                         icon = Icons.Default.QrCodeScanner,
                         iconColor = Cyan,
                         onClick = {
-                            inputQuery = ""
-                            activeDialog = "QR"
+                            paymentPhotoPicker.launch("image/*")
                         },
                         modifier = Modifier.weight(1f)
                     )
                     DetectionToolCard(
                         title = "Payment",
-                        subtitle = "Verify UPI ID",
+                        subtitle = "Verify receipt / QR",
                         icon = Icons.Default.FolderOpen,
                         iconColor = Color(0xFFFBBF24),
                         onClick = {
-                            inputQuery = ""
-                            activeDialog = "PAYMENT"
+                            paymentPhotoPicker.launch("image/*")
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -768,9 +766,17 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                 Spacer(Modifier.height(10.dp))
             }
 
-            // Row 3: APK / App & Call
+            // Row 3: Media & APK / App
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DetectionToolCard(
+                        title = "Media",
+                        subtitle = "Deepfake scan",
+                        icon = Icons.Default.Star,
+                        iconColor = Cyan,
+                        onClick = { nav.navigate("deepfake_scan") },
+                        modifier = Modifier.weight(1f)
+                    )
                     DetectionToolCard(
                         title = "APK / App",
                         subtitle = "Inspect installed",
@@ -779,43 +785,6 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                         onClick = {
                             appFilterQuery = ""
                             activeDialog = "APK"
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DetectionToolCard(
-                        title = "Call",
-                        subtitle = "Caller risk",
-                        icon = Icons.Default.PhoneAndroid,
-                        iconColor = Color(0xFF60A5FA),
-                        onClick = {
-                            inputQuery = ""
-                            activeDialog = "CALL"
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-            }
-
-            // Row 4: Media & Investment
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    DetectionToolCard(
-                        title = "Media",
-                        subtitle = "Deepfake",
-                        icon = Icons.Default.Star,
-                        iconColor = Cyan,
-                        onClick = { nav.navigate("deepfake_scan") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    DetectionToolCard(
-                        title = "Investment",
-                        subtitle = "Loan scams",
-                        icon = Icons.Default.WarningAmber,
-                        iconColor = Color(0xFFF59E0B),
-                        onClick = {
-                            inputQuery = ""
-                            activeDialog = "INVESTMENT"
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -836,10 +805,8 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                             "MESSAGE" -> "Analyze Message (SMS / Chat)"
                             "URL" -> "Scan Website Link / URL"
                             "QR" -> "Analyze QR Code Payload"
-                            "PAYMENT" -> "Verify Payment Recipient (UPI)"
+                            "PAYMENT" -> "Verify Payment / Receipt Photo"
                             "APK" -> "Select Installed App to Audit"
-                            "CALL" -> "Verify Caller Number"
-                            "INVESTMENT" -> "Analyze Investment / Loan Scheme"
                             else -> "Security Scan"
                         },
                         fontWeight = FontWeight.Bold,
@@ -848,7 +815,27 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                 },
                 text = {
                     Column(Modifier.fillMaxWidth()) {
-                        if (dialogType == "APK") {
+                        if (dialogType == "PAYMENT") {
+                            Text(
+                                "Upload any UPI payment screenshot, receipt, or QR photo to verify amount and detect spoofing:",
+                                color = Muted,
+                                fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            Button(
+                                onClick = {
+                                    paymentPhotoPicker.launch("image/*")
+                                    activeDialog = null
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                            ) {
+                                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Upload Screenshot / QR Photo", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else if (dialogType == "APK") {
                             Text(
                                 "Choose any application installed on your device to run a permission audit:",
                                 color = Muted,
@@ -910,9 +897,6 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                 "MESSAGE" -> "Type or paste message text to inspect for phishing, credential requests, or urgent pressure:"
                                 "URL" -> "Enter or paste website link to check for deceptive domains, SSL status, and malware:"
                                 "QR" -> "Enter or paste decoded QR payload, payment link, or data string:"
-                                "PAYMENT" -> "Enter UPI VPA or merchant ID (e.g., store@upi, 9876543210@paytm):"
-                                "CALL" -> "Enter caller phone number to verify reputation:"
-                                "INVESTMENT" -> "Paste crypto, loan, or investment proposal message:"
                                 else -> "Enter input for security audit:"
                             }
                             Text(hintText, color = Muted, fontSize = 12.sp)
@@ -924,16 +908,14 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                     Text(
                                         when (dialogType) {
                                             "URL" -> "https://..."
-                                            "PAYMENT" -> "merchant@upi"
-                                            "CALL" -> "+91 98765 43210"
                                             else -> "Paste text here..."
                                         },
                                         color = Muted,
                                         fontSize = 13.sp
                                     )
                                 },
-                                minLines = if (dialogType == "MESSAGE" || dialogType == "INVESTMENT") 3 else 1,
-                                maxLines = if (dialogType == "MESSAGE" || dialogType == "INVESTMENT") 5 else 2,
+                                minLines = if (dialogType == "MESSAGE") 3 else 1,
+                                maxLines = if (dialogType == "MESSAGE") 5 else 2,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Cyan,
@@ -942,26 +924,11 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                     unfocusedTextColor = Color.White
                                 )
                             )
-
-                            if (dialogType == "PAYMENT") {
-                                Spacer(Modifier.height(10.dp))
-                                OutlinedButton(
-                                    onClick = { paymentPhotoPicker.launch("image/*") },
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                    border = BorderStroke(1.dp, Cyan.copy(alpha = 0.6f)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Cyan, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Upload Screenshot / QR Photo", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
                         }
                     }
                 },
                 confirmButton = {
-                    if (dialogType != "APK") {
+                    if (dialogType != "APK" && dialogType != "PAYMENT") {
                         Button(
                             onClick = {
                                 if (inputQuery.isNotBlank()) {
@@ -980,21 +947,6 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                             vm.scanQr(inputQuery)
                                             activeDialog = null
                                             nav.navigate("qr_payment")
-                                        }
-                                        "PAYMENT" -> {
-                                            vm.scanPayment(inputQuery)
-                                            activeDialog = null
-                                            nav.navigate("qr_payment")
-                                        }
-                                        "CALL" -> {
-                                            vm.scanCall(inputQuery)
-                                            activeDialog = null
-                                            nav.navigate("call_result")
-                                        }
-                                        "INVESTMENT" -> {
-                                            vm.scanMessage(inputQuery)
-                                            activeDialog = null
-                                            nav.navigate("message_result")
                                         }
                                     }
                                 }
@@ -1543,11 +1495,13 @@ private fun UrlProtectionScreen(
 
         result?.let { res ->
             val scannedUrl = res.rawInputReference ?: "Unknown URL"
-            val isSafe = res.riskLevel == RiskLevel.SAFE || res.riskLevel == RiskLevel.LOW_CONCERN
-            val riskBadgeColor = when (res.riskLevel) {
-                RiskLevel.CRITICAL, RiskLevel.HIGH_RISK -> Color(0xFFFF5252)
-                RiskLevel.SUSPICIOUS -> Color(0xFFF59E0B)
-                RiskLevel.LOW_CONCERN -> Color(0xFF38BDF8)
+            val isNonExistentUrl = res.signals.any { it.type == "DNS_RESOLUTION_FAILURE" } || res.explanation.contains("does not exist", ignoreCase = true)
+            val isSafe = !isNonExistentUrl && (res.riskLevel == RiskLevel.SAFE || res.riskLevel == RiskLevel.LOW_CONCERN)
+            val riskBadgeColor = when {
+                isNonExistentUrl -> Color(0xFFFF5252)
+                res.riskLevel == RiskLevel.CRITICAL || res.riskLevel == RiskLevel.HIGH_RISK -> Color(0xFFFF5252)
+                res.riskLevel == RiskLevel.SUSPICIOUS -> Color(0xFFF59E0B)
+                res.riskLevel == RiskLevel.LOW_CONCERN -> Color(0xFF38BDF8)
                 else -> Color(0xFF00E676)
             }
 
@@ -1577,7 +1531,7 @@ private fun UrlProtectionScreen(
                     border = BorderStroke(1.dp, riskBadgeColor.copy(alpha = 0.7f))
                 ) {
                     Text(
-                        res.riskLevel.label,
+                        if (isNonExistentUrl) "URL DOES NOT EXIST" else res.riskLevel.label,
                         color = riskBadgeColor,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -1598,28 +1552,28 @@ private fun UrlProtectionScreen(
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
                         Icon(
-                            if (isSafe) Icons.Default.CheckCircle else Icons.Default.Shield,
+                            if (isNonExistentUrl) Icons.Default.WarningAmber else if (isSafe) Icons.Default.CheckCircle else Icons.Default.Shield,
                             contentDescription = null,
-                            tint = if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252),
+                            tint = if (isNonExistentUrl) Color(0xFFFF5252) else if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252),
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                if (isSafe) "Verified Destination" else "Suspicious Destination",
+                                if (isNonExistentUrl) "URL Does Not Exist" else if (isSafe) "Verified Destination" else "Suspicious Destination",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
                             Text(
-                                res.explanation,
+                                if (isNonExistentUrl) "The entered website domain does not exist on the internet. DNS lookup failed (Host not found)." else res.explanation,
                                 color = Muted,
                                 fontSize = 12.sp,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "${res.signals.size} risk signals identified",
+                                if (isNonExistentUrl) "Domain not found on internet DNS servers" else "${res.signals.size} risk signals identified",
                                 color = riskBadgeColor,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -1808,7 +1762,7 @@ private fun QrPaymentScreen(
                 Spacer(Modifier.height(4.dp))
             }
 
-            // Inline input section when no scan or user requests re-scan
+            // Photo upload input card
             if (isInputExpanded || result == null) {
                 item {
                     Card(
@@ -1817,69 +1771,41 @@ private fun QrPaymentScreen(
                         border = BorderStroke(1.dp, Cyan.copy(alpha = 0.5f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Analyze QR / UPI Payment", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text("Paste decoded QR payload, UPI link (upi://pay?pa=...), or VPA to verify recipient:", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Cyan, modifier = Modifier.size(36.dp))
                             Spacer(Modifier.height(10.dp))
-                            OutlinedTextField(
-                                value = inlineQrInput,
-                                onValueChange = { inlineQrInput = it },
-                                placeholder = { Text("e.g. upi://pay?pa=store@upi&pn=Store&am=500", color = Muted, fontSize = 12.sp) },
-                                minLines = 2,
-                                maxLines = 4,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Cyan,
-                                    unfocusedBorderColor = Line,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                )
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            Text("Upload Payment Screenshot or QR Photo", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
+                            Text("Upload any UPI receipt, GPay, PhonePe, Paytm payment slip, or QR code photo to audit transaction amount and detect fraud.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+                            Button(
+                                onClick = { paymentPhotoPicker.launch("image/*") },
+                                colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
                             ) {
-                                Button(
-                                    onClick = {
-                                        if (inlineQrInput.isNotBlank()) {
-                                            vm.scanQr(inlineQrInput)
-                                            isInputExpanded = false
-                                        }
-                                    },
-                                    enabled = inlineQrInput.isNotBlank() && !isScanning,
-                                    colors = ButtonDefaults.buttonColors(containerColor = Cyan, disabledContainerColor = Line),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    if (isScanning) {
-                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Analyzing...", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    } else {
-                                        Text("Verify QR", color = if (inlineQrInput.isNotBlank()) Color.Black else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
+                                if (isScanning) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Extracting Real Amount...", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Upload Payment / QR Photo", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
-                                OutlinedButton(
-                                    onClick = { paymentPhotoPicker.launch("image/*") },
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                    border = BorderStroke(1.dp, Cyan.copy(alpha = 0.6f)),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Cyan, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Upload Photo / QR", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
-                                if (result != null) {
-                                    TextButton(onClick = { isInputExpanded = false }) {
-                                        Text("Close", color = Muted, fontSize = 12.sp)
-                                    }
+                            }
+                            if (result != null) {
+                                Spacer(Modifier.height(8.dp))
+                                TextButton(onClick = { isInputExpanded = false }) {
+                                    Text("Close", color = Muted, fontSize = 12.sp)
                                 }
                             }
                         }
                     }
                     Spacer(Modifier.height(14.dp))
                 }
-        }
+            }
 
         result?.let { res ->
             val payload = res.rawInputReference ?: ""

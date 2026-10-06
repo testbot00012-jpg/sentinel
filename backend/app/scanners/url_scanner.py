@@ -58,6 +58,31 @@ class UrlScanner(BaseScanner[str]):
                 limitations=["Whitelisting does not guarantee sub-page compromise if third-party content is embedded."]
             )
 
+        # Check if domain actually exists via DNS
+        hostname = parsed.hostname or (f"{extracted.domain}.{extracted.suffix}" if extracted.suffix else "")
+        if hostname and hostname != "localhost" and not hostname.startswith("127."):
+            import socket
+            try:
+                socket.getaddrinfo(hostname, None)
+            except socket.gaierror:
+                return self.build_result(
+                    risk_score=95,
+                    confidence=0.99,
+                    signals=[ScannerSignal(
+                        name="URL / Domain Does Not Exist",
+                        type="DNS_RESOLUTION_FAILURE",
+                        severity="CRITICAL",
+                        description=f"DNS resolution failed for hostname '{hostname}'. Domain is not registered or has no active DNS A/AAAA records.",
+                        evidence_value=hostname
+                    )],
+                    explanation=f"URL does not exist: Domain '{hostname}' could not be resolved via DNS. The website does not exist or has been deactivated.",
+                    recommended_actions=[
+                        "Check the URL for typographical errors or misspelling.",
+                        "Do not trust links that point to non-existent or expired domains."
+                    ],
+                    limitations=["Validated via authoritative DNS socket resolution."]
+                )
+
         # 1. IP address in hostname check
         ip_pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
         if re.match(ip_pattern, parsed.hostname or ""):

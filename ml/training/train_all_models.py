@@ -210,6 +210,95 @@ def train_behavioral_anomaly_model():
     print(f"Behavioral Anomaly Model fitted: {metrics}")
     return metrics
 
+def train_deepfake_detector():
+    print("--- Training Deepfake & Generative AI Media Forensic Detector ---")
+    np.random.seed(42)
+    n_samples = 10000
+    half = n_samples // 2
+
+    # 1. Authentic Camera Media Features:
+    # [spatial_freq_decay, prnu_snr, corneal_symmetry, dermis_pore_density,
+    #  face_edge_discontinuity, color_channel_cov, blinking_cadence, lens_aberration,
+    #  jpeg_grid_consistency, rppg_pulse_rate, lighting_normal_coherence, latent_residual]
+    benign_X = np.column_stack([
+        np.random.normal(-1.8, 0.25, half).clip(-2.5, -1.2),  # Natural 1/f^2 frequency decay
+        np.random.normal(18.5, 3.0, half).clip(12.0, 26.0),   # PRNU physical CMOS sensor noise SNR (dB)
+        np.random.normal(0.95, 0.03, half).clip(0.88, 1.0),   # Corneal reflection symmetry cosine
+        np.random.normal(0.82, 0.08, half).clip(0.65, 0.98),  # Natural micro-pore skin texture
+        np.random.normal(0.08, 0.04, half).clip(0.01, 0.20),  # Low edge blending discontinuity
+        np.random.normal(0.92, 0.04, half).clip(0.80, 0.99),  # Color cross-channel coherence
+        np.random.normal(16.0, 3.5, half).clip(10.0, 24.0),   # Natural blinking/sec
+        np.random.normal(0.88, 0.05, half).clip(0.75, 0.98),  # Radial lens aberration match
+        np.random.normal(0.94, 0.03, half).clip(0.85, 1.0),   # Single-generation JPEG block grid
+        np.random.normal(72.0, 8.0, half).clip(55.0, 95.0),   # Biological rPPG cardiac pulse signal
+        np.random.normal(0.91, 0.04, half).clip(0.80, 0.98),  # 3D illumination vector coherence
+        np.random.normal(0.05, 0.02, half).clip(0.01, 0.12)   # Low latent reconstruction residual
+    ])
+    benign_y = np.zeros(half)
+
+    # 2. Synthetic AI Media Features (Midjourney, SDXL, StyleGAN, FaceSwap, DALL-E 3):
+    fake_X = np.column_stack([
+        np.random.normal(-0.6, 0.35, half).clip(-1.4, 0.2),   # High-frequency spectral anomalies / grid decay
+        np.random.normal(2.1, 1.2, half).clip(0.0, 5.5),      # Lack of authentic CMOS PRNU sensor noise
+        np.random.normal(0.42, 0.15, half).clip(0.1, 0.72),   # Asymmetric / discordant corneal highlights
+        np.random.normal(0.22, 0.10, half).clip(0.02, 0.48),  # Over-smoothed synthetic dermis / pore absence
+        np.random.normal(0.65, 0.14, half).clip(0.35, 0.98),  # Face perimeter blending seams
+        np.random.normal(0.58, 0.12, half).clip(0.25, 0.78),  # Diffusion cross-channel phase errors
+        np.random.normal(3.5, 2.0, half).clip(0.0, 8.0),      # Abnormal / frozen blink cadence
+        np.random.normal(0.35, 0.12, half).clip(0.1, 0.65),   # Unnatural optical dispersion
+        np.random.normal(0.40, 0.15, half).clip(0.1, 0.70),   # Resampled / multiple interpolation blocks
+        np.random.normal(12.0, 8.0, half).clip(0.0, 30.0),    # Total absence of biological pulse
+        np.random.normal(0.45, 0.12, half).clip(0.15, 0.68),  # Conflicting multi-source lighting normals
+        np.random.normal(0.78, 0.10, half).clip(0.50, 0.99)   # Elevated generative latent residual
+    ])
+    fake_y = np.ones(half)
+
+    X = np.vstack([benign_X, fake_X])
+    y = np.concatenate([benign_y, fake_y])
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+    clf = GradientBoostingClassifier(n_estimators=150, learning_rate=0.08, max_depth=5, random_state=42)
+    clf.fit(X_train, y_train)
+
+    y_pred = clf.predict(X_test)
+    y_prob = clf.predict_proba(X_test)[:, 1]
+
+    feature_names = [
+        "spatial_freq_decay", "prnu_sensor_noise_snr", "corneal_specular_symmetry",
+        "dermis_pore_texture_density", "face_edge_discontinuity", "color_channel_cov",
+        "blinking_cadence", "lens_aberration", "jpeg_grid_consistency",
+        "biological_pulse_rppg", "lighting_normal_coherence", "generative_latent_residual"
+    ]
+
+    metrics = {
+        "model_name": "CyberShield-Deepfake-Ensemble-VisionForensics",
+        "version": "2.4.0",
+        "algorithm": "GradientBoostingClassifier (12 Multi-Spectral Spatial Forensic Features)",
+        "samples_evaluated": len(y_test),
+        "total_dataset_size": n_samples,
+        "feature_count": len(feature_names),
+        "accuracy": round(float(accuracy_score(y_test, y_pred)), 4),
+        "precision": round(float(precision_score(y_test, y_pred)), 4),
+        "recall": round(float(recall_score(y_test, y_pred)), 4),
+        "f1": round(float(f1_score(y_test, y_pred)), 4),
+        "roc_auc": round(float(roc_auc_score(y_test, y_prob)), 4),
+        "pr_auc": round(float(average_precision_score(y_test, y_prob)), 4),
+        "feature_importances": {
+            feature_names[i]: round(float(clf.feature_importances_[i]), 4)
+            for i in range(len(feature_names))
+        }
+    }
+    model_payload = {
+        "classifier": clf,
+        "feature_names": feature_names,
+        "metrics": metrics,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    joblib.dump(model_payload, "ml/saved_models/deepfake_detector_model.pkl")
+    print(f"Deepfake Forensic Model Metrics: {metrics}")
+    return metrics
+
 def main():
     print("==================================================")
     print("CYBERSHIELD MACHINE LEARNING TRAINING PIPELINE")
@@ -219,6 +308,7 @@ def main():
     results["sms_detector"] = train_sms_nlp_model()
     results["apk_risk_detector"] = train_apk_risk_model()
     results["behavior_detector"] = train_behavioral_anomaly_model()
+    results["deepfake_detector"] = train_deepfake_detector()
 
     report_path = "ml/evaluation/evaluation_report.json"
     with open(report_path, "w", encoding="utf-8") as f:

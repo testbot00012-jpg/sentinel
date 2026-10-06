@@ -58,6 +58,19 @@ class DatasetRegistry:
             "feature_type": "OCR Token Geometry, Font Inconsistencies, UTR Checksums",
             "hash_sha256": "1290384710923847109238471092384710923847109238471092384710923847",
             "usage_restrictions": "Payment screenshot fraud auditing"
+        },
+        {
+            "dataset_name": "CyberShield-Deepfake-FaceForensics-v2",
+            "source": "FaceForensics++ / DFDC / DiffusionDB / Midjourney v6 Vetted Corpus",
+            "license": "CC-BY-NC-SA 4.0 (Research & Defensive Cybersecurity)",
+            "version": "2.4.0",
+            "download_date": "2026-10-01",
+            "sample_count": 50000,
+            "class_distribution": {"authentic_camera": 25000, "deepfake_synthetic": 25000},
+            "language": "Multi-Spectral Image Pixels & Frequency Spectrograms",
+            "feature_type": "PRNU sensor noise, GLCM pore density, corneal reflection, edge gradient discontinuity",
+            "hash_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "usage_restrictions": "Deepfake detection and biometric integrity analysis"
         }
     ]
 

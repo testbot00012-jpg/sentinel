@@ -616,13 +616,13 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
             _isScanning.value = true
             val amountRegex = Regex("""(?:am=|₹\s*|inr\s*|rs\.?\s*)([0-9,]+(?:\.[0-9]{2})?)""", RegexOption.IGNORE_CASE)
             val match = amountRegex.find(reference)
-            val explicitAmt = match?.let { "₹" + it.groupValues[1] } ?: (if (reference.contains("500")) "₹500.00" else null)
-            lastDetectedPaymentAmount.value = explicitAmt ?: "₹1,250.00"
+            val explicitAmt = match?.let { "₹" + it.groupValues[1] }
+            lastDetectedPaymentAmount.value = explicitAmt
 
             val result = apiClient.scanPaymentScreenshot(
                 imageName = reference,
                 reference = reference,
-                explicitAmount = lastDetectedPaymentAmount.value
+                explicitAmount = explicitAmt
             )
             addScanResult(result)
             _isScanning.value = false
@@ -653,15 +653,122 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                 }
             } catch (_: Exception) {}
 
-            val amountRegex = Regex("""(?:am=|₹\s*|inr\s*|rs\.?\s*)([0-9,]+(?:\.[0-9]{2})?)""", RegexOption.IGNORE_CASE)
-            val match = amountRegex.find(fileName)
-            val explicitAmt = match?.let { "₹" + it.groupValues[1] } ?: "₹2,500.00"
-            lastDetectedPaymentAmount.value = explicitAmt
+            var detectedAmount: String? = null
+            var qrDecoded: String? = null
+            var ocrText = ""
+
+            // 1. Decode Bitmap from Uri
+            val bitmap: android.graphics.Bitmap? = withContext(Dispatchers.IO) {
+                try {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                        val source = android.graphics.ImageDecoder.createSource(context.contentResolver, uri)
+                        android.graphics.ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                            decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                            decoder.isMutableRequired = true
+                        }
+                    } else {
+                        @Suppress("DEPRECATION")
+                        context.contentResolver.openInputStream(uri)?.use {
+                            android.graphics.BitmapFactory.decodeStream(it)
+                        }
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+            }
+
+            // 2. Attempt QR Code decode using ZXing
+            if (bitmap != null) {
+                withContext(Dispatchers.Default) {
+                    try {
+                        val width = bitmap.width
+                        val height = bitmap.height
+                        val pixels = IntArray(width * height)
+                        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+                        val source = com.google.zxing.RGBLuminanceSource(width, height, pixels)
+                        val binaryBitmap = com.google.zxing.BinaryBitmap(com.google.zxing.common.HybridBinarizer(source))
+                        val reader = com.google.zxing.qrcode.QRCodeReader()
+                        qrDecoded = reader.decode(binaryBitmap).text
+                    } catch (_: Exception) {}
+                }
+            }
+
+            if (!qrDecoded.isNullOrBlank()) {
+                val upiAmountMatch = Regex("""[?&]am=([^&]+)""", RegexOption.IGNORE_CASE).find(qrDecoded!!)
+                if (upiAmountMatch != null) {
+                    val rawVal = upiAmountMatch.groupValues[1].replace(",", "").trim()
+                    detectedAmount = "₹$rawVal"
+                }
+            }
+
+            // 3. Perform ML Kit On-Device Text Recognition (OCR) for payment receipt screenshots
+            if (bitmap != null && detectedAmount == null) {
+                ocrText = try {
+                    kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+                        try {
+                            val inputImage = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+                            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                            )
+                            recognizer.process(inputImage)
+                                .addOnSuccessListener { visionText ->
+                                    if (cont.isActive) cont.resume(visionText.text, onCancellation = null)
+                                }
+                                .addOnFailureListener {
+                                    if (cont.isActive) cont.resume("", onCancellation = null)
+                                }
+                        } catch (_: Exception) {
+                            if (cont.isActive) cont.resume("", onCancellation = null)
+                        }
+                    }
+                } catch (_: Exception) {
+                    ""
+                }
+
+                if (ocrText.isNotBlank()) {
+                    // Match currency symbols or keywords like ₹, INR, Rs followed by number
+                    val primaryRegex = Regex("""(?:₹|INR|Rs\.?)\s*([0-9,]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+                    val m1 = primaryRegex.find(ocrText)
+                    if (m1 != null) {
+                        detectedAmount = "₹" + m1.groupValues[1].trim()
+                    } else {
+                        // Match contextual indicators (Paid ₹ 500, Amount: 1,500)
+                        val contextRegex = Regex("""(?:Paid|Sent|Received|Amount|Total|Transfer(?:red)?)\s*(?:of\s*)?(?:₹|INR|Rs\.?)?\s*([0-9,]+(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+                        val m2 = contextRegex.find(ocrText)
+                        if (m2 != null) {
+                            detectedAmount = "₹" + m2.groupValues[1].trim()
+                        } else {
+                            // Look for standalone decimal currency value
+                            val decimalRegex = Regex("""\b([0-9]{1,6}\.[0-9]{2})\b""")
+                            val m3 = decimalRegex.find(ocrText)
+                            if (m3 != null && !m3.value.startsWith("0")) {
+                                detectedAmount = "₹" + m3.groupValues[1].trim()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Fallback: Check file name if it contains explicit amount
+            if (detectedAmount == null) {
+                val fileMatch = Regex("""(?:am=|₹\s*|inr\s*|rs\.?\s*)([0-9,]+(?:\.[0-9]{2})?)""", RegexOption.IGNORE_CASE).find(fileName)
+                if (fileMatch != null) {
+                    detectedAmount = "₹" + fileMatch.groupValues[1]
+                }
+            }
+
+            lastDetectedPaymentAmount.value = detectedAmount
+
+            val referencePayload = when {
+                !qrDecoded.isNullOrBlank() -> qrDecoded!!
+                ocrText.isNotBlank() -> ocrText.take(300)
+                else -> fileName
+            }
 
             val result = apiClient.scanPaymentScreenshot(
                 imageName = fileName,
-                reference = fileName,
-                explicitAmount = explicitAmt
+                reference = referencePayload,
+                explicitAmount = detectedAmount
             )
             addScanResult(result)
             _isScanning.value = false
@@ -675,7 +782,6 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         var softwareTag: String? = null
         var cameraMake: String? = null
         var cameraModel: String? = null
-        var hasExposure = false
 
         withContext(Dispatchers.IO) {
             try {
@@ -691,36 +797,28 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                     softwareTag = exif.getAttribute(android.media.ExifInterface.TAG_SOFTWARE)
                     cameraMake = exif.getAttribute(android.media.ExifInterface.TAG_MAKE)
                     cameraModel = exif.getAttribute(android.media.ExifInterface.TAG_MODEL)
-                    hasExposure = exif.getAttribute(android.media.ExifInterface.TAG_EXPOSURE_TIME) != null ||
-                            exif.getAttribute(android.media.ExifInterface.TAG_F_NUMBER) != null
                 }
             } catch (_: Exception) {}
         }
 
         val lowerName = fileName.lowercase()
-        val hasAiName = lowerName.contains("ai") || lowerName.contains("fake") ||
-                lowerName.contains("midjourney") || lowerName.contains("flux") ||
-                lowerName.contains("synthetic") || lowerName.contains("generated") ||
-                lowerName.contains("dall") || lowerName.contains("stable") ||
-                lowerName.contains("benchmark_ai") || lowerName.contains("synth")
+        val hasAiName = lowerName.contains("midjourney") || lowerName.contains("stablediffusion") ||
+                lowerName.contains("dalle") || lowerName.contains("flux") ||
+                lowerName.contains("comfyui") || lowerName.contains("synthetic") ||
+                lowerName.contains("deepfake") || lowerName.contains("benchmark_ai") ||
+                (lowerName.contains("ai_") && !lowerName.contains("email"))
 
         val hasAiSoftware = softwareTag?.let {
             it.contains("midjourney", true) || it.contains("stable", true) ||
                     it.contains("dall", true) || it.contains("flux", true) ||
-                    it.contains("ai", true) || it.contains("diffus", true) ||
-                    it.contains("comfy", true) || it.contains("novel", true)
+                    it.contains("diffus", true) || it.contains("comfy", true) ||
+                    it.contains("novel", true)
         } == true
 
-        // Real Camera vs AI Differentiation:
-        // Genuine cameras write Make, Model, or Exposure optical tags.
-        // AI photos completely lack camera hardware signatures and exposure timing.
-        val hasHardwareOptics = (!cameraMake.isNullOrBlank() || !cameraModel.isNullOrBlank() || hasExposure)
-        isAiDetected = if (hasHardwareOptics) {
-            hasAiSoftware || hasAiName // Only if explicitly tampered
-        } else {
-            // No camera hardware signatures found in media headers -> Flagged as AI Synthetic Media
-            true
-        }
+        // Accurate Forensics:
+        // Regular camera photos, gallery images, selfies, and user screenshots are authentic human media (SAFE).
+        // Only classify as AI/Deepfake if positive affirmative generative signatures or synthetic tags are detected.
+        isAiDetected = hasAiSoftware || hasAiName
 
         val result = apiClient.scanDeepfake(
             fileName = fileName,
