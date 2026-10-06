@@ -29,9 +29,10 @@ def run():
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", port), Handler) as httpd:
         print("=================================================================")
-        print(f"🛡️  Sentinel AI Web Console running at: http://localhost:{port}")
-        print("⚡ Connected to Backend API at: http://localhost:8000/api/v1")
+        print(f"[*] Sentinel AI Web Console running at: http://localhost:{port}")
+        print("[-] Connected to Backend API at: http://localhost:8000/api/v1")
         print("=================================================================")
+
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
