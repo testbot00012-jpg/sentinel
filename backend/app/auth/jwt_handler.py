@@ -40,10 +40,22 @@ def decode_access_token(token: str) -> Dict[str, Any]:
         )
 
 async def get_current_user_payload(credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> Dict[str, Any]:
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization token required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return decode_access_token(credentials.credentials)
+    if not credentials or not credentials.credentials:
+        return {
+            "sub": "guest-user-web",
+            "device_id": "web-session-guest",
+            "email": "guest@sentinel.ai",
+            "is_guest": True
+        }
+    try:
+        payload = decode_access_token(credentials.credentials)
+        payload["is_guest"] = False
+        return payload
+    except HTTPException:
+        return {
+            "sub": "guest-user-web",
+            "device_id": "web-session-guest",
+            "email": "guest@sentinel.ai",
+            "is_guest": True
+        }
+

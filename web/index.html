@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinel AI - Enterprise Cyber Defense & Fraud Protection Console</title>
+  <meta name="description" content="Unified neural cybersecurity console. Real-time URL phishing detection, multilingual message scam shielding, PRNU vision forensics, and UPI payment safety.">
+
+  <!-- Google Fonts: Outfit (headings), Inter (body), JetBrains Mono (tech/telemetry) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <!-- Ambient Cyber Background Grid -->
+  <div class="cyber-grid-overlay"></div>
+
+  <!-- ==========================================================================
+       NAVIGATION BAR
+       ========================================================================== -->
+  <header class="navbar">
+    <div class="brand-container" onclick="window.app.switchTab('dashboard')">
+      <div class="brand-logo-glow">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm0 3.3l6 3.33v4.37c0 4.14-2.82 8.01-6 9.17-3.18-1.16-6-5.03-6-9.17V8.63l6-3.33zm-1 5.7h2v5h-2zm0 6h2v2h-2z"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>SENTINEL AI</h1>
+        <div class="status-badge">
+          <span class="pulse-dot"></span>
+          <span>NEURAL SHIELD ARMED • v2.4</span>
+        </div>
+      </div>
+    </div>
+
+    <nav>
+      <ul class="nav-links">
+        <li><a class="nav-link active" data-tab="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Overview
+        </a></li>
+        <li><a class="nav-link" data-tab="url">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          URL Shield
+        </a></li>
+        <li><a class="nav-link" data-tab="sms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Message Shield
+        </a></li>
+        <li><a class="nav-link" data-tab="deepfake">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Deepfake Vision
+        </a></li>
+        <li><a class="nav-link" data-tab="qr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          QR Safety
+        </a></li>
+        <li><a class="nav-link" data-tab="assistant">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM4 12a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm12 0a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2zm-6 6a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h0a2 2 0 0 1-2-2v-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          AI Assistant
+        </a></li>
+        <li><a class="nav-link" data-tab="history">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+          Audit History
+        </a></li>
+      </ul>
+    </nav>
+
+    <div class="nav-controls">
+      <!-- Sync Status Pill -->
+      <div id="sync-status-pill" class="sync-pill" title="Click to synchronize telemetry with mobile Android app">
+        <span class="sync-icon-spin">🔄</span>
+        <span>Guest Mode • Click to Sync</span>
+      </div>
+
+      <!-- Language selector -->
+      <select id="global-lang-select" class="lang-select" aria-label="Select Language">
+        <option value="en">English (US)</option>
+        <option value="hi">हिन्दी (Hindi)</option>
+        <option value="te">తెలుగు (Telugu)</option>
+      </select>
+
+      <!-- Account Profile Button -->
+      <button id="user-profile-btn" class="user-profile-btn">
+        <span id="user-avatar-initials" class="user-avatar-circle">🛡️</span>
+        <span id="user-display-name">Sign In</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       MAIN APP CONTAINER & TAB ROUTING PANES
+       ========================================================================== -->
+  <main class="app-container">
+
+    <!-- ==========================================
+         TAB 01: OVERVIEW & POSTURE DASHBOARD
+         ========================================== -->
+    <section id="tab-dashboard" class="tab-pane active">
+      <div class="page-header">
+        <div class="header-title-block">
+          <h2>Security Posture & Telemetry</h2>
+          <p>Real-time threat fusion engine synchronizing live telemetry across linked Android and Web sessions.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary btn-sm" id="btn-view-devices">
+            📱 Connected Devices
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="window.authController.triggerSync()">
+            ⚡ Sync Now
+          </button>
+        </div>
+      </div>
+
+      <!-- Hero Grid: Dynamic Score & Metrics Quad -->
+      <div class="dashboard-hero-grid">
+        <!-- SVG Radial Gauge Score Card -->
+        <div class="glass-panel score-card">
+          <div class="card-step-badge">LIVE COMPOSITE SCORE</div>
+          <div class="score-gauge-wrapper">
+            <svg class="score-svg" viewBox="0 0 200 200">
+              <circle class="score-meter-bg" cx="100" cy="100" r="90" />
+              <circle id="dash-score-circle" class="score-meter-progress" cx="100" cy="100" r="90" />
+            </svg>
+            <div class="score-display-center">
+              <div id="dash-score-number" class="score-number">94</div>
+              <div class="score-max">/ 100</div>
+            </div>
+          </div>
+          <h3 id="dash-posture-title" class="score-posture-title">EXCELLENT POSTURE</h3>
+          <p id="dash-posture-desc" class="score-posture-desc">Zero unpatched critical vulnerabilities detected. Neural shields actively armed.</p>
+
+          <div class="score-breakdown-mini">
+            <div class="breakdown-row">
+              <span class="breakdown-label">Web Phishing Shield</span>
+              <div class="breakdown-bar-wrap"><div id="bar-web" class="breakdown-bar-fill" style="width:95%;background:#00f2fe;"></div></div>
+              <span id="val-web" class="breakdown-val">95</span>
+            </div>
+            <div class="breakdown-row">
+              <span class="breakdown-label">Scam Message NLP</span>
+              <div class="breakdown-bar-wrap"><div id="bar-app" class="breakdown-bar-fill" style="width:90%;background:#6366f1;"></div></div>
+              <span id="val-app" class="breakdown-val">90</span>
+            </div>
+            <div class="breakdown-row">
+              <span class="breakdown-label">Vision PRNU Forensics</span>
+              <div class="breakdown-bar-wrap"><div id="bar-device" class="breakdown-bar-fill" style="width:95%;background:#10b981;"></div></div>
+              <span id="val-device" class="breakdown-val">95</span>
+            </div>
+            <div class="breakdown-row">
+              <span class="breakdown-label">Account & Device Health</span>
+              <div class="breakdown-bar-wrap"><div id="bar-account" class="breakdown-bar-fill" style="width:90%;background:#f59e0b;"></div></div>
+              <span id="val-account" class="breakdown-val">90</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI Metrics Quad -->
+        <div>
+          <div class="metrics-quad-grid">
+            <div class="glass-panel metric-stat-card">
+              <div class="metric-header">
+                <span class="metric-title">Total Account Scans</span>
+                <div class="metric-icon-box" style="background:rgba(0,242,254,0.1);color:#00f2fe;">🔍</div>
+              </div>
+              <div id="stat-total-scans" class="metric-val">0</div>
+              <div class="metric-foot">
+                <span>Synchronized cross-device history</span>
+              </div>
+            </div>
+
+            <div class="glass-panel metric-stat-card">
+              <div class="metric-header">
+                <span class="metric-title">Threats Blocked</span>
+                <div class="metric-icon-box" style="background:rgba(239,68,68,0.1);color:#f87171;">🛡️</div>
+              </div>
+              <div id="stat-threats-blocked" class="metric-val">0</div>
+              <div class="metric-foot">
+                <span>Phishing & synthetic frauds intercepted</span>
+              </div>
+            </div>
+
+            <div class="glass-panel metric-stat-card">
+              <div class="metric-header">
+                <span class="metric-title">Verified Clean Items</span>
+                <div class="metric-icon-box" style="background:rgba(16,185,129,0.1);color:#34d399;">✅</div>
+              </div>
+              <div id="stat-clean-items" class="metric-val">0</div>
+              <div class="metric-foot">
+                <span>Conforming to safety baselines</span>
+              </div>
+            </div>
+
+            <div class="glass-panel metric-stat-card">
+              <div class="metric-header">
+                <span class="metric-title">Synced Devices</span>
+                <div class="metric-icon-box" style="background:rgba(99,102,241,0.1);color:#818cf8;">📱</div>
+              </div>
+              <div id="stat-active-devices" class="metric-val">1</div>
+              <div class="metric-foot">
+                <span>Android Phone & Web Browser linked</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Action Launcher Shortcuts -->
+          <div class="quick-launcher-strip">
+            <div class="quick-action-card" data-target-tab="url">
+              <div class="quick-icon-pill" style="background:rgba(0,242,254,0.12);color:#00f2fe;">🌐</div>
+              <div class="quick-info">
+                <h4>URL Shield</h4>
+                <p>DNS pre-flight & heuristics</p>
+              </div>
+            </div>
+            <div class="quick-action-card" data-target-tab="sms">
+              <div class="quick-icon-pill" style="background:rgba(99,102,241,0.12);color:#818cf8;">💬</div>
+              <div class="quick-info">
+                <h4>SMS Shield</h4>
+                <p>Multilingual scam NLP</p>
+              </div>
+            </div>
+            <div class="quick-action-card" data-target-tab="deepfake">
+              <div class="quick-icon-pill" style="background:rgba(236,72,153,0.12);color:#f472b6;">👁️</div>
+              <div class="quick-info">
+                <h4>Deepfake Vision</h4>
+                <p>PRNU noise & skin texture</p>
+              </div>
+            </div>
+            <div class="quick-action-card" data-target-tab="qr">
+              <div class="quick-icon-pill" style="background:rgba(16,185,129,0.12);color:#34d399;">📷</div>
+              <div class="quick-info">
+                <h4>QR Safety</h4>
+                <p>Safe vs Scam verification</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split Feed: Active Threat Alerts & Recent Account Activity -->
+      <div class="dashboard-split-feed">
+        <div class="glass-panel feed-card">
+          <div class="feed-header">
+            <h3 class="feed-title">
+              <span>🚨</span>
+              <span>Active Security Alerts</span>
+            </h3>
+            <span class="live-badge">Live Monitor</span>
+          </div>
+          <div id="dash-alerts-feed" class="feed-list">
+            <!-- Dynamic alerts inserted by JS -->
+          </div>
+        </div>
+
+        <div class="glass-panel feed-card">
+          <div class="feed-header">
+            <h3 class="feed-title">
+              <span>📋</span>
+              <span>Recent Account Scans</span>
+            </h3>
+            <button class="btn btn-secondary btn-sm" onclick="window.app.switchTab('history')">
+              View All Logs
+            </button>
+          </div>
+          <div id="dash-recent-scans-feed" class="feed-list">
+            <!-- Dynamic scans inserted by JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 02: URL PHISHING SHIELD
+         ========================================== -->
+    <section id="tab-url" class="tab-pane">
+      <div class="page-header">
+        <div class="header-title-block">
+          <h2>URL Phishing & Malicious Domain Shield</h2>
+          <p>Real-time DNS socket pre-flight resolution, punycode homograph unmasking, and lexical heuristic ensemble.</p>
+        </div>
+      </div>
+
+      <div class="scanner-workspace-layout">
+        <!-- Input Panel -->
+        <div class="glass-panel scanner-input-card">
+          <div class="card-step-badge">TARGET IDENTIFICATION</div>
+          <form id="form-url-scan">
+            <div class="input-label-row">
+              <label for="input-url">Website URL or Domain</label>
+              <span style="font-size:0.75rem;color:var(--text-sub);">Includes DNS live verification</span>
+            </div>
+            <input type="text" id="input-url" class="custom-input-box" placeholder="https://example.com or paste link..." required>
+
+            <div class="sample-preset-pills">
+              <span style="font-size:0.75rem;color:var(--text-sub);display:inline-block;margin-right:4px;">Test Presets:</span>
+              <button type="button" class="sample-pill preset-url-btn" data-url="https://google.com">Safe Domain</button>
+              <button type="button" class="sample-pill preset-url-btn" data-url="http://paypal-security-update.xyz/login">Phishing Target</button>
+              <button type="button" class="sample-pill preset-url-btn" data-url="https://nonexistent-fake-domain-999.com">Non-Existent URL</button>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:1rem;">
+              <span>⚡ Execute DNS & Phishing Analysis</span>
+            </button>
+          </form>
+
+          <div style="margin-top:1.5rem;padding:1rem;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--text-muted);line-height:1.4;">
+            <strong style="color:var(--cyan-primary);">DNS Pre-Flight Guard:</strong> If a URL does not exist on the public internet or has no active DNS A/AAAA records, Sentinel AI immediately intercepts and warns before any phishing heuristics evaluate.
+          </div>
+        </div>
+
+        <!-- Result Panel -->
+        <div id="result-url-box" class="glass-panel scanner-result-card">
+          <div style="text-align:center;padding:4rem 1rem;color:var(--text-sub);">
+            <div style="font-size:3rem;margin-bottom:0.75rem;">🌐</div>
+            <p style="font-weight:600;color:var(--text-main);">Awaiting URL Input</p>
+            <p style="font-size:0.82rem;">Enter or paste a domain on the left to inspect reputation, DNS resolution, and phishing risk.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 03: SMS & MESSAGE SCAM SHIELD
+         ========================================== -->
+    <section id="tab-sms" class="tab-pane">
+      <div class="page-header">
+        <div class="header-title-block">
+          <h2>SMS & Multilingual Scam Shield</h2>
+          <p>Natural Language Processing for urgency triggers, financial coercion, and KYC fraud across English, Hindi, and Telugu.</p>
+        </div>
+      </div>
+
+      <div class="scanner-workspace-layout">
+        <!-- Input Panel -->
+        <div class="glass-panel scanner-input-card">
+          <div class="card-step-badge">MESSAGE EXTRACTION</div>
+          <form id="form-sms-scan">
+            <div class="input-label-row">
+              <label for="input-sms-text">Message Content</label>
+              <select id="sms-lang-select" class="lang-select" style="padding:2px 8px;font-size:0.75rem;">
+                <option value="en">English</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+                <option value="te">తెలుగు (Telugu)</option>
+              </select>
+            </div>
+            <textarea id="input-sms-text" class="custom-input-box custom-textarea" placeholder="Paste suspicious SMS, WhatsApp message, or email body here..." required></textarea>
+
+            <div class="sample-preset-pills">
+              <span style="font-size:0.75rem;color:var(--text-sub);display:inline-block;margin-right:4px;">Load Scam Sample:</span>
+              <button type="button" class="sample-pill preset-sms-btn" data-lang="en" data-text="URGENT: Your SBI account has been suspended due to pending KYC. Update PAN card now at http://sbi-pan-kyc.top/verify to prevent termination.">Bank KYC Suspended</button>
+              <button type="button" class="sample-pill preset-sms-btn" data-lang="en" data-text="Congratulations! Your mobile number won Rs. 25,00,000 in KBC Lucky Draw. Contact WhatsApp manager at 9876543210 to claim.">Lottery Winner</button>
+              <button type="button" class="sample-pill preset-sms-btn" data-lang="en" data-text="Your One Time Password (OTP) for transaction of Rs. 450 is 849201. Valid for 5 minutes. Do not share with anyone.">Genuine Bank OTP</button>
+              <button type="button" class="sample-pill preset-sms-btn" data-lang="te" data-text="మీ బ్యాంక్ ఖాతా బ్లాక్ చేయబడింది. వెంటనే ఇక్కడ క్లిక్ చేసి KYC అప్‌డేట్ చేయండి http://bank-update-telugu.top">తెలుగు KYC Scam</button>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;">
+              <span>💬 Analyze Message Intent</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Result Panel -->
+        <div id="result-sms-box" class="glass-panel scanner-result-card">
+          <div style="text-align:center;padding:4rem 1rem;color:var(--text-sub);">
+            <div style="font-size:3rem;margin-bottom:0.75rem;">💬</div>
+            <p style="font-weight:600;color:var(--text-main);">Awaiting Message Input</p>
+            <p style="font-size:0.82rem;">Paste message text or click a sample preset to test semantic fraud detection.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 04: AI MEDIA & DEEPFAKE VISION
+         ========================================== -->
+    <section id="tab-deepfake" class="tab-pane">
+      <div class="page-header">
+        <div class="header-title-block">
+          <h2>AI Media & Deepfake Forensic Vision Scanner</h2>
+          <p>Optical sensor noise residual (PRNU) variance, synthetic dermis smoothing disparity, and generative metadata inspection.</p>
+        </div>
+      </div>
+
+      <div class="scanner-workspace-layout">
+        <!-- Input & Upload Panel -->
+        <div class="glass-panel scanner-input-card">
+          <div class="card-step-badge">MEDIA FORENSIC ACQUISITION</div>
+          <input type="file" id="input-deepfake-file" accept="image/*" style="display:none;">
+
+          <div id="deepfake-dropzone" class="file-dropzone-box">
+            <div class="dropzone-icon">📷</div>
+            <div class="dropzone-text">
+              <h4>Drop Photo / Image Here or Click to Upload</h4>
+              <p>Supports JPG, PNG, WEBP. Analyzes optical CMOS sensor noise & synthetic smoothing.</p>
+            </div>
+          </div>
+
+          <div class="sample-preset-pills">
+            <span style="font-size:0.75rem;color:var(--text-sub);display:inline-block;margin-right:4px;">Test Samples:</span>
+            <button type="button" class="sample-pill preset-deepfake-btn" data-sample-type="real">📸 Camera Photo (Authentic)</button>
+            <button type="button" class="sample-pill preset-deepfake-btn" data-sample-type="ai">🤖 AI Diffusion Portrait (Synthetic)</button>
+          </div>
+
+          <div id="deepfake-preview-box" class="media-preview-container" style="display:none;">
+            <img id="deepfake-preview-img" class="media-preview-img" src="" alt="Preview">
+            <div class="laser-scanner-line"></div>
+          </div>
+
+          <button id="btn-deepfake-analyze" class="btn btn-primary" style="width:100%;margin-top:1.25rem;" disabled>
+            <span>👁️ Run Forensic Vision Scanner</span>
+          </button>
+        </div>
+
+        <!-- Result Panel -->
+        <div id="result-deepfake-box" class="glass-panel scanner-result-card">
+          <div style="text-align:center;padding:4rem 1rem;color:var(--text-sub);">
+            <div style="font-size:3rem;margin-bottom:0.75rem;">👁️</div>
+            <p style="font-weight:600;color:var(--text-main);">Awaiting Media Upload</p>
+            <p style="font-size:0.82rem;">Upload an image or select a sample above to perform pixel-level neural forensics.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 05: QR & PAYMENT SAFETY SCANNER
+         STRICT RULE: Only output SAFE or NOT SAFE / SCAM. NO amount and NO raw photo dump!
+         ========================================== -->
+    <section id="tab-qr" class="tab-pane">
+      <div class="page-header">
+        <div class="header-title-block">
+          <h2>QR & UPI Payment Safety Inspector</h2>
+          <p>Instant safety verification for QR codes and UPI transfers. Detects collect-request fraud and malicious redirection.</p>
+        </div>
+      </div>
+
+      <div class="scanner-workspace-layout">
+        <!-- Input Panel -->
+        <div class="glass-panel scanner-input-card">
+          <div class="card-step-badge">PAYMENT PAYLOAD OR PHOTO</div>
+          
+          <input type="file" id="input-qr-file" accept="image/*" style="display:none;">
+          <div id="qr-dropzone" class="file-dropzone-box" style="margin-bottom:1.25rem;padding:1.5rem;">
+            <div class="dropzone-icon" style="width:40px;height:40px;margin-bottom:0.5rem;">📷</div>
+            <div class="dropzone-text">
+              <h4 style="font-size:0.9rem;">Upload QR Code or Payment Screenshot</h4>
+              <p style="font-size:0.75rem;">Directly evaluates destination safety.</p>
+            </div>
+          </div>
+
+          <form id="form-qr-scan">
+            <div class="input-label-row">
+              <label for="input-qr-payload">UPI URI Payload or Link</label>
+            </div>
+            <input type="text" id="input-qr-payload" class="custom-input-box" placeholder="upi://pay?pa=... or paste QR text..." required>
+
+            <div class="sample-preset-pills">
+              <span style="font-size:0.75rem;color:var(--text-sub);display:inline-block;margin-right:4px;">Presets:</span>
+              <button type="button" class="sample-pill preset-qr-btn" data-payload="upi://pay?pa=merchant@icici&pn=VerifiedStore&mc=5411">Verified Merchant QR</button>
+              <button type="button" class="sample-pill preset-qr-btn" data-payload="upi://pay?pa=scammer99@paytm&pn=RefundDept&am=5000">Suspicious Peer UPI</button>
+              <button type="button" class="sample-pill preset-qr-btn" data-payload="https://phishing-banking-update.buzz/login">Malicious Link QR</button>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.75rem;">
+              <span>🛡️ Check Safety Verdict</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Result Panel (Strictly SAFE or NOT SAFE / SCAM only) -->
+        <div id="result-qr-box" class="glass-panel scanner-result-card">
+          <div style="text-align:center;padding:4rem 1rem;color:var(--text-sub);">
+            <div style="font-size:3rem;margin-bottom:0.75rem;">📷</div>
+            <p style="font-weight:600;color:var(--text-main);">Awaiting QR Payload</p>
+            <p style="font-size:0.82rem;">Upload a payment screenshot or paste a UPI string to see if the recipient is safe or dangerous.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 06: AI SECURITY ASSISTANT CHATBOT
+         ========================================== -->
+    <section id="tab-assistant" class="tab-pane">
+      <div class="page-header">
+        <div class="header-title-block">
+          <h2>Sentinel AI Security Assistant</h2>
+          <p>Context-aware conversational cybersecurity assistant grounded in official threat intelligence playbooks.</p>
+        </div>
+        <div class="header-actions">
+          <select id="chat-lang-select" class="lang-select">
+            <option value="en">English</option>
+            <option value="hi">हिन्दी</option>
+            <option value="te">తెలుగు</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="glass-panel assistant-container">
+        <!-- Sidebar Prompt Suggestions -->
+        <div class="assistant-sidebar">
+          <div>
+            <h4 style="font-size:0.95rem;color:var(--text-main);margin-bottom:0.35rem;">Threat Topics</h4>
+            <p style="font-size:0.78rem;color:var(--text-muted);">Quick prompt suggestions to query Sentinel AI:</p>
+            <div class="suggested-prompts-list">
+              <button class="prompt-chip" data-prompt="Is entering my UPI PIN ever required to receive money?">
+                ❓ Do I enter PIN to receive money?
+              </button>
+              <button class="prompt-chip" data-prompt="How does Sentinel AI detect synthetic AI deepfakes?">
+                👁️ How do we detect deepfakes?
+              </button>
+              <button class="prompt-chip" data-prompt="How do I recognize a bank KYC suspension SMS scam?">
+                💬 How to spot KYC SMS scams?
+              </button>
+              <button class="prompt-chip" data-prompt="What is punycode homograph attack in phishing URLs?">
+                🌐 What are punycode phishing links?
+              </button>
+              <button class="prompt-chip" data-prompt="Explain my overall device security score and how to improve it.">
+                🛡️ Explain my security posture
+              </button>
+            </div>
+          </div>
+
+          <div style="padding-top:1rem;border-top:1px solid var(--border-subtle);font-size:0.75rem;color:var(--text-sub);">
+            Grounded RAG Engine: Active
+          </div>
+        </div>
+
+        <!-- Chat Messaging Window -->
+        <div class="chat-main-area">
+          <div id="chat-messages-scroll" class="chat-messages-scroll">
+            <div class="chat-bubble-row assistant">
+              <div class="chat-avatar assistant">🛡️</div>
+              <div class="chat-bubble">
+                Hello! I am your Sentinel AI Cyber Defense Assistant. I monitor your active scans and help protect you against phishing, payment fraud, and synthetic media. How can I assist you today?
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-bar">
+            <input type="text" id="chat-input-text" class="chat-input-field" placeholder="Ask any cybersecurity question or discuss your recent scan...">
+            <button id="chat-send-btn" class="btn btn-primary" style="padding:0.75rem 1.25rem;">
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 07: AUDIT HISTORY & MULTI-DEVICE SYNC LOGS
+         ========================================== -->
+    <section id="tab-history" class="tab-pane">
+      <div class="page-header">
+        <div class="header-title-block">
+          <h2>Unified Audit History & Forensic Logs</h2>
+          <p>Chronological scan registry synchronized across your registered Android phones and Web sessions.</p>
+        </div>
+        <div class="header-actions">
+          <button id="btn-refresh-history" class="btn btn-secondary btn-sm">
+            🔄 Refresh Registry
+          </button>
+        </div>
+      </div>
+
+      <div class="glass-panel" style="padding:1.5rem;">
+        <div class="history-toolbar">
+          <div class="history-filter-tabs">
+            <button class="filter-btn active" data-filter="ALL">All Items</button>
+            <button class="filter-btn" data-filter="URL">URLs</button>
+            <button class="filter-btn" data-filter="MESSAGE">Messages</button>
+            <button class="filter-btn" data-filter="DEEPFAKE">Deepfakes</button>
+            <button class="filter-btn" data-filter="QR">QR & Payments</button>
+          </div>
+
+          <input type="text" id="history-search-input" class="custom-input-box history-search-input" placeholder="Search target or summary...">
+        </div>
+
+        <div class="history-table-container">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Device Origin</th>
+                <th>Type</th>
+                <th>Target Identifier</th>
+                <th>Verdict</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body">
+              <!-- Rendered dynamically by history.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================================================
+       MODAL 01: AUTHENTICATION & PROFILE
+       ========================================================================== -->
+  <div id="auth-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 style="font-size:1.15rem;display:flex;align-items:center;gap:0.5rem;">
+          <span>🛡️</span> Sentinel Account Synchronization
+        </h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="auth-nav-tabs">
+          <button id="tab-btn-login" class="auth-tab-btn active">Sign In</button>
+          <button id="tab-btn-register" class="auth-tab-btn">Create Account</button>
+          <button id="tab-btn-profile" class="auth-tab-btn">Account Profile</button>
+        </div>
+
+        <!-- Form Login -->
+        <form id="form-login">
+          <div class="auth-form-group">
+            <label for="login-email">Email Address</label>
+            <input type="email" id="login-email" class="custom-input-box" placeholder="you@example.com" required>
+          </div>
+          <div class="auth-form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" class="custom-input-box" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.75rem;">
+            Sign In to Account
+          </button>
+        </form>
+
+        <!-- Form Register -->
+        <form id="form-register" style="display:none;">
+          <div class="auth-form-group">
+            <label for="reg-name">Full Name</label>
+            <input type="text" id="reg-name" class="custom-input-box" placeholder="Alex Sentinel" required>
+          </div>
+          <div class="auth-form-group">
+            <label for="reg-email">Email Address</label>
+            <input type="email" id="reg-email" class="custom-input-box" placeholder="you@example.com" required>
+          </div>
+          <div class="auth-form-group">
+            <label for="reg-password">Password</label>
+            <input type="password" id="reg-password" class="custom-input-box" placeholder="Min 6 characters" required>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.75rem;">
+            Create Sentinel Account
+          </button>
+        </form>
+
+        <!-- View Profile Details -->
+        <div id="view-profile-details" style="display:none;">
+          <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1.25rem;">
+            <div style="font-size:0.8rem;color:var(--text-sub);">ACTIVE ACCOUNT</div>
+            <div id="profile-name-text" style="font-size:1.1rem;font-weight:700;color:var(--text-main);margin-top:2px;">User</div>
+            <div id="profile-email-text" style="font-size:0.85rem;color:var(--cyan-primary);margin-top:2px;">user@example.com</div>
+            <div id="profile-id-text" style="font-size:0.72rem;color:var(--text-sub);margin-top:4px;font-family:var(--font-mono);">ID: ...</div>
+          </div>
+
+          <h4 style="font-size:0.85rem;text-transform:uppercase;color:var(--text-sub);margin-bottom:0.5rem;">Supabase Account Activity</h4>
+          <div id="account-activity-feed" style="max-height:160px;overflow-y:auto;margin-bottom:1.25rem;"></div>
+
+          <div style="display:flex;gap:0.75rem;">
+            <button id="btn-logout" class="btn btn-secondary btn-sm" style="flex:1;">
+              Log Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 02: CONNECTED DEVICES LIST
+       ========================================================================== -->
+  <div id="devices-modal" class="modal-backdrop">
+    <div class="modal-card wide">
+      <div class="modal-header">
+        <h3 style="font-size:1.15rem;display:flex;align-items:center;gap:0.5rem;">
+          <span>📱</span> Linked Devices & Cross-Platform Sessions
+        </h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">
+          Telemetry and scan events are synchronized across all devices signed into this user account.
+        </p>
+        <div id="connected-devices-list">
+          <!-- Dynamic devices rendered by auth.js -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 03: FORENSIC AUDIT REPORT INSPECTOR
+       ========================================================================== -->
+  <div id="audit-modal" class="modal-backdrop">
+    <div class="modal-card wide">
+      <div class="modal-header">
+        <h3 style="font-size:1.15rem;display:flex;align-items:center;gap:0.5rem;">
+          <span>📋</span> Forensic Audit Inspection
+        </h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div id="audit-modal-content" class="modal-body">
+        <!-- Rendered dynamically by history.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ==========================================================================
+       FOOTER
+       ========================================================================== -->
+  <footer class="app-footer">
+    <p>Sentinel AI Security Platform • Enterprise Autonomous Threat Shield • Synchronized with Mobile Android Client</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+  <script src="/static/js/scanners.js"></script>
+  <script src="/static/js/history.js"></script>
+  <script src="/static/js/assistant.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

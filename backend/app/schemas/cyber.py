@@ -167,7 +167,9 @@ class DeepfakeScanRequest(BaseModel):
     media_type: str = "IMAGE"  # IMAGE, VIDEO, AUDIO
     media_hash_sha256: str
     face_count: Optional[int] = 1
+    image_base64: Optional[str] = None
     features: Optional[Dict[str, Any]] = None
+
 
 # Incident schemas
 class IncidentCreateRequest(BaseModel):

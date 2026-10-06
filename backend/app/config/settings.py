@@ -9,8 +9,12 @@ class Settings(BaseSettings):
     
     # Environment & Database
     ENV: str = "development"
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./cybershield.db")
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL", 
+        f"sqlite+aiosqlite:///{os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'cybershield.db')).replace(chr(92), '/')}"
+    )
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
     
     # Security & Tokens
     SECRET_KEY: str = os.getenv("SECRET_KEY", "cybershield-super-secret-production-grade-key-2026")
