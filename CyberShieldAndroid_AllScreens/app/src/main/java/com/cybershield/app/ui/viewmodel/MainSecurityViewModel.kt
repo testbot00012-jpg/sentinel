@@ -599,11 +599,7 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         if (payload.isBlank()) return
         viewModelScope.launch {
             _isScanning.value = true
-            val amountRegex = Regex("""(?:am=|₹\s*|inr\s*|rs\.?\s*)([0-9,]+(?:\.[0-9]{2})?)""", RegexOption.IGNORE_CASE)
-            val match = amountRegex.find(payload)
-            if (match != null) {
-                lastDetectedPaymentAmount.value = "₹" + match.groupValues[1]
-            }
+            lastDetectedPaymentAmount.value = null
             val result = apiClient.scanQr(payload.trim())
             addScanResult(result)
             _isScanning.value = false
@@ -763,15 +759,7 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                 }
             }
 
-            // 4. Fallback: Check file name if it contains explicit amount
-            if (detectedAmount == null) {
-                val fileMatch = Regex("""(?:am=|₹\s*|inr\s*|rs\.?\s*)([0-9,]+(?:\.[0-9]{2})?)""", RegexOption.IGNORE_CASE).find(fileName)
-                if (fileMatch != null) {
-                    detectedAmount = "₹" + fileMatch.groupValues[1]
-                }
-            }
-
-            lastDetectedPaymentAmount.value = detectedAmount
+            lastDetectedPaymentAmount.value = null
 
             val referencePayload = when {
                 !qrDecoded.isNullOrBlank() -> qrDecoded!!
@@ -782,7 +770,7 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
             val result = apiClient.scanPaymentScreenshot(
                 imageName = fileName,
                 reference = referencePayload,
-                explicitAmount = detectedAmount
+                explicitAmount = null
             )
             addScanResult(result)
             _isScanning.value = false

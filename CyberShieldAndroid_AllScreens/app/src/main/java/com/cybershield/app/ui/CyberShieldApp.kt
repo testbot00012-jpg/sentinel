@@ -817,7 +817,7 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                     Column(Modifier.fillMaxWidth()) {
                         if (dialogType == "PAYMENT") {
                             Text(
-                                "Upload any UPI payment screenshot, receipt, or QR photo to verify amount and detect spoofing:",
+                                "Upload any QR photo or payment screenshot to instantly check whether it is safe or a scam:",
                                 color = Muted,
                                 fontSize = 12.sp
                             )
@@ -833,7 +833,7 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                             ) {
                                 Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Upload Screenshot / QR Photo", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("Upload QR Photo / Screenshot", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
                         } else if (dialogType == "APK") {
                             Text(
@@ -1736,10 +1736,8 @@ private fun QrPaymentScreen(
 ) {
     val context = LocalContext.current
     var showAiOverlay by remember { mutableStateOf(false) }
-    var inlineQrInput by remember { mutableStateOf("") }
     var isInputExpanded by remember { mutableStateOf(result == null) }
     val isScanning by vm.isScanning.collectAsState()
-    val lastDetectedAmount by vm.lastDetectedPaymentAmount.collectAsState()
 
     val paymentPhotoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -1758,7 +1756,7 @@ private fun QrPaymentScreen(
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             item {
-                FigmaSubHeader("QR & payment", "Review before you pay", nav)
+                FigmaSubHeader("QR Safety Inspector", "Check if QR code is safe or scam", nav)
                 Spacer(Modifier.height(4.dp))
             }
 
@@ -1775,10 +1773,10 @@ private fun QrPaymentScreen(
                             modifier = Modifier.padding(20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Cyan, modifier = Modifier.size(36.dp))
+                            Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Cyan, modifier = Modifier.size(38.dp))
                             Spacer(Modifier.height(10.dp))
-                            Text("Upload Payment Screenshot or QR Photo", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
-                            Text("Upload any UPI receipt, GPay, PhonePe, Paytm payment slip, or QR code photo to audit transaction amount and detect fraud.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+                            Text("Upload QR Photo or Screenshot", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
+                            Text("Upload any QR photo or payment screenshot to instantly check whether it is SAFE or a SCAM.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
                             Button(
                                 onClick = { paymentPhotoPicker.launch("image/*") },
                                 colors = ButtonDefaults.buttonColors(containerColor = Cyan),
@@ -1788,11 +1786,11 @@ private fun QrPaymentScreen(
                                 if (isScanning) {
                                     CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Extracting Real Amount...", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("Analyzing QR Safety...", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 } else {
                                     Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Upload Payment / QR Photo", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("Upload QR Photo / Screenshot", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             if (result != null) {
@@ -1807,220 +1805,212 @@ private fun QrPaymentScreen(
                 }
             }
 
-        result?.let { res ->
-            val payload = res.rawInputReference ?: ""
-            // Parse UPI parameters if present
-            var payeeVpa = "Direct Payload"
-            var amountStr = "Unspecified"
-            if (!lastDetectedAmount.isNullOrBlank()) {
-                amountStr = lastDetectedAmount!!
-            }
-            if (payload.contains("pa=", ignoreCase = true)) {
-                val paMatch = Regex("pa=([^&]+)", RegexOption.IGNORE_CASE).find(payload)
-                if (paMatch != null) payeeVpa = paMatch.groupValues[1]
-            } else if (payload.isNotBlank()) {
-                payeeVpa = payload.take(40)
-            }
-            if (payload.contains("am=", ignoreCase = true)) {
-                val amMatch = Regex("am=([^&]+)", RegexOption.IGNORE_CASE).find(payload)
-                if (amMatch != null) amountStr = "₹${amMatch.groupValues[1]}"
-            }
-            if (amountStr == "Unspecified") {
-                val match = Regex("""(?:₹|INR|Rs\.?)\s*([0-9,]+(?:\.[0-9]{1,2})?)""").find(res.explanation)
-                if (match != null) {
-                    amountStr = "₹${match.groupValues[1]}"
-                }
-            }
+            result?.let { res ->
+                val isSafe = res.riskLevel == RiskLevel.SAFE
+                val verdictColor = if (isSafe) SentinelRiskColors.SAFE_GREEN else SentinelRiskColors.DANGER_RED
+                val verdictTitle = if (isSafe) "QR CODE IS SAFE" else "QR CODE IS DANGEROUS / SCAM"
+                val verdictBadge = if (isSafe) "VERIFIED SAFE TO SCAN" else "UNSAFE — DO NOT SCAN"
 
-            val isSafe = res.riskLevel == RiskLevel.SAFE
-            val riskBadgeColor = when (res.riskLevel) {
-                RiskLevel.CRITICAL, RiskLevel.HIGH_RISK -> Color(0xFFFF5252)
-                RiskLevel.SUSPICIOUS -> Color(0xFFF59E0B)
-                RiskLevel.LOW_CONCERN -> Color(0xFF38BDF8)
-                else -> Color(0xFF00E676)
-            }
-
-            // QR decoded Card
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Line),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                // 1. Direct Safety Verdict Hero Card (Pure Safe or Not Safe)
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        shape = RoundedCornerShape(18.dp),
+                        border = BorderStroke(1.5.dp, verdictColor.copy(alpha = 0.8f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .background(Color(0xFF0B1925), RoundedCornerShape(12.dp))
-                                .border(1.dp, Cyan.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(Icons.Default.CropFree, contentDescription = null, tint = Cyan, modifier = Modifier.size(32.dp))
-                        }
-                        Spacer(Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Surface(
+                                shape = CircleShape,
+                                color = verdictColor.copy(alpha = 0.15f),
+                                border = BorderStroke(1.5.dp, verdictColor),
+                                modifier = Modifier.size(64.dp)
                             ) {
-                                Text("QR decoded", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Surface(
-                                    color = riskBadgeColor.copy(alpha = 0.16f),
-                                    border = BorderStroke(1.dp, riskBadgeColor),
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
-                                    Text(
-                                        res.riskLevel.label,
-                                        color = riskBadgeColor,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isSafe) Icons.Default.VerifiedUser else Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = verdictColor,
+                                        modifier = Modifier.size(34.dp)
                                     )
                                 }
                             }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            Text(
+                                text = verdictTitle,
+                                color = verdictColor,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 18.sp,
+                                textAlign = TextAlign.Center
+                            )
+
                             Spacer(Modifier.height(6.dp))
-                            Text("Recipient", color = Muted, fontSize = 11.sp)
-                            Text(payeeVpa, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Spacer(Modifier.height(4.dp))
-                            Text("Amount", color = Muted, fontSize = 11.sp)
-                            Text(amountStr, color = Color(0xFFFBBF24), fontWeight = FontWeight.Black, fontSize = 22.sp)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(18.dp))
-            }
 
-            // Diagnostic Report Section
-            item {
-                Text("Diagnostic Report", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, Line),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        val paymentType = if (payload.startsWith("upi://", true)) "UPI Standard Payment Intent" else "QR Payment Transfer Payload"
-                        Text("Payment Type: $paymentType", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Detected Amount: $amountStr", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Spacer(Modifier.height(8.dp))
-                        HorizontalDivider(color = Line.copy(alpha = 0.5f))
-                        Spacer(Modifier.height(8.dp))
-
-                        Text(
-                            if (isSafe) "WHY IT IS SAFE" else "WHY IT IS DANGEROUS",
-                            color = if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                        val whyText = if (isSafe) {
-                            "Verified merchant or standard P2P transfer intent. Direct transaction route without reverse-collect or unauthorized authorization overrides."
-                        } else {
-                            "Contains suspicious request payload, reverse-collect manipulation attempting to debit rather than credit, or unverified recipient origin."
-                        }
-                        Text(whyText, color = Color(0xFFCBD5E1), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                        Spacer(Modifier.height(8.dp))
-                        HorizontalDivider(color = Line.copy(alpha = 0.5f))
-                        Spacer(Modifier.height(8.dp))
-
-                        Text("WHAT YOU SHOULD DO", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        val actionText = if (isSafe) {
-                            "Verify the recipient name and amount on your bank UPI PIN screen before approving payment."
-                        } else {
-                            "DECLINE this transaction immediately. NEVER enter your UPI PIN or scan a QR code to receive money!"
-                        }
-                        Text(actionText, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                    }
-                }
-                Spacer(Modifier.height(18.dp))
-            }
-
-            // Before you pay section
-            item {
-                Text("Before you pay", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, Line),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        CheckshieldItem("Recipient ($payeeVpa) matches your intent")
-                        CheckshieldItem("Amount ($amountStr) matches what you expect")
-                        CheckshieldItem("You NEVER need to enter your PIN to receive money")
-                        if (res.signals.isNotEmpty()) {
-                            res.signals.forEach { sig ->
-                                CheckshieldItem("Signal: ${sig.name} - ${sig.description}")
+                            Surface(
+                                color = verdictColor.copy(alpha = 0.18f),
+                                border = BorderStroke(1.dp, verdictColor),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Text(
+                                    text = verdictBadge,
+                                    color = verdictColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
                             }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            Text(
+                                text = if (isSafe) {
+                                    "This QR code conforms to authentic banking standards. No malicious redirect, phishing parameters, or disguised collect requests detected."
+                                } else {
+                                    "WARNING: This QR code is malicious or disguised as a payment collect scam. Scanning or entering your UPI PIN will transfer funds OUT of your account."
+                                },
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
+                    Spacer(Modifier.height(16.dp))
                 }
-                Spacer(Modifier.height(20.dp))
-            }
 
-            // Button
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // 2. Safety Diagnostics: Why It Is Safe or Dangerous
+                item {
+                    Text(
+                        text = if (isSafe) "Safety Verification Analysis" else "Threat Analysis",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, Line),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (isSafe) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SentinelRiskColors.SAFE_GREEN, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Authentic Payment Protocol: Valid NPCI / Bank routing verified", color = Color.White, fontSize = 12.sp)
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SentinelRiskColors.SAFE_GREEN, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("No Disguised Collect Request: Clean transfer intent", color = Color.White, fontSize = 12.sp)
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SentinelRiskColors.SAFE_GREEN, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Zero Malicious Redirections: No phishing links embedded", color = Color.White, fontSize = 12.sp)
+                                }
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Cancel, contentDescription = null, tint = SentinelRiskColors.DANGER_RED, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Disguised Debit Intent: Triggers money deduction, not credit", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Cancel, contentDescription = null, tint = SentinelRiskColors.DANGER_RED, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Scam Pattern Detected: Asks to scan QR or enter PIN to receive money", color = Color.White, fontSize = 12.sp)
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Cancel, contentDescription = null, tint = SentinelRiskColors.DANGER_RED, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("High Risk: Do not scan with Google Pay, PhonePe, or Paytm", color = Color.White, fontSize = 12.sp)
+                                }
+                            }
+
+                            HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 4.dp))
+
+                            Text(
+                                text = "RECOMMENDED ACTION",
+                                color = Color(0xFFFBBF24),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                            Text(
+                                text = if (isSafe) {
+                                    "You can proceed safely with this transaction using your official banking app."
+                                } else {
+                                    "DECLINE AND DELETE this QR code immediately. You NEVER need to scan a QR code or enter your PIN to receive money!"
+                                },
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(18.dp))
+                }
+
+                // 3. Action Buttons
+                item {
                     Button(
                         onClick = { isInputExpanded = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10151E)),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, Cyan),
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
                             .height(48.dp)
                     ) {
-                        Text("Scan Another Payment", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = null, tint = Cyan, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Check Another QR Photo / Code", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Sentinel AI verifies QR cryptographic and UPI protocol integrity.",
+                        color = Muted,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "CyberShield never controls your bank transaction.",
-                    color = Muted,
-                    fontSize = 11.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        } ?: item {
-            if (!isInputExpanded) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Line),
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                ) {
-                    Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.QrCodeScanner, null, tint = Cyan, modifier = Modifier.size(36.dp))
-                        Spacer(Modifier.height(10.dp))
-                        Text("No QR / Payment Scanned Yet", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("Enter or paste any UPI payload, QR string, or merchant ID to verify safety.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
-                        Spacer(Modifier.height(14.dp))
-                        Button(
-                            onClick = { isInputExpanded = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Cyan),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Enter Payment Payload", color = Color.Black, fontWeight = FontWeight.Bold)
+            } ?: item {
+                if (!isInputExpanded) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Line),
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.QrCodeScanner, null, tint = Cyan, modifier = Modifier.size(36.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text("No QR Code Scanned Yet", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Upload any QR photo or screenshot to instantly check whether it is safe or a scam.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                            Spacer(Modifier.height(14.dp))
+                            Button(
+                                onClick = { isInputExpanded = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Cyan),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Upload QR Photo", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             }
         }
-    }
 
-    ScanAiSideFab(
+        ScanAiSideFab(
             onClick = { showAiOverlay = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)

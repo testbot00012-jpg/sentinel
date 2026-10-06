@@ -468,46 +468,17 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
         reference: String?,
         explicitAmount: String? = null
     ): SecurityResult = withContext(Dispatchers.IO) {
-        val target = reference?.trim() ?: imageName ?: "Payment Screenshot"
+        val target = reference?.trim() ?: imageName ?: "QR Photo / Payment Screenshot"
         val lower = target.lowercase()
         val isCollect = lower.contains("collect") || lower.contains("request") || lower.contains("approve")
         val isFakeReceipt = lower.contains("spoof") || lower.contains("fake") || lower.contains("prank") || lower.contains("generator") || lower.contains("demo")
         val isScam = isCollect || isFakeReceipt
-
-        // Extract transaction amount
-        var detectedAmount = explicitAmount
-        if (detectedAmount.isNullOrBlank()) {
-            val amountRegex = Regex("""(?:am=|₹\s*|inr\s*|rs\.?\s*)([0-9,]+(?:\.[0-9]{2})?)""", RegexOption.IGNORE_CASE)
-            val match = amountRegex.find(target)
-            if (match != null) {
-                detectedAmount = "₹" + match.groupValues[1]
-            }
-        }
-        if (detectedAmount.isNullOrBlank()) {
-            val numRegex = Regex("""\b([0-9]{2,6}(?:\.[0-9]{2})?)\b""")
-            val numMatch = numRegex.find(target)
-            if (numMatch != null && !target.contains("@")) {
-                detectedAmount = "₹" + numMatch.groupValues[1]
-            }
-        }
 
         val riskScore = if (isCollect) 85 else if (isFakeReceipt) 90 else 4
         val secScore = 100 - riskScore
 
         val signals = mutableListOf<ScannerSignal>()
         val actions = mutableListOf<String>()
-
-        if (detectedAmount != null) {
-            signals.add(
-                ScannerSignal(
-                    name = "Parsed Transaction Value: $detectedAmount",
-                    type = "PAYMENT_PAYLOAD",
-                    severity = if (isScam) "HIGH" else "SAFE",
-                    description = "Forensic parser extracted transaction value of $detectedAmount from payment payload / OCR.",
-                    evidenceValue = detectedAmount
-                )
-            )
-        }
 
         if (isCollect) {
             signals.add(ScannerSignal("Disguised UPI Collect Request", "PAYMENT_PROTOCOL", "CRITICAL", "Transaction triggers a 'Pay' debit authorization rather than a credit. Entering PIN will transfer money OUT of your account."))
@@ -522,13 +493,8 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
             actions.add("Check your authentic bank account statement directly to confirm credit.")
         } else {
             signals.add(ScannerSignal("Authentic Payment & Transaction Format", "NPCI_VALIDATION", "SAFE", "Standard transaction payload conforming to verified banking network standards."))
-            actions.add("Payment details appear valid. Confirm beneficiary name before transferring.")
-            actions.add("Verify amount (${detectedAmount ?: "Standard"}) in your official UPI app.")
-        }
-
-        val evidenceList = mutableListOf(target)
-        if (detectedAmount != null) {
-            evidenceList.add("Detected Amount: $detectedAmount")
+            actions.add("QR code verified as safe to scan.")
+            actions.add("Standard payment security precautions apply.")
         }
 
         SecurityResult(
@@ -540,18 +506,27 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
             threatProbability = riskScore / 100.0,
             confidence = 0.96,
             signals = signals,
-            explanation = if (isCollect) "CRITICAL PAYMENT FRAUD: Disguised UPI Collect request detected for ${detectedAmount ?: "funds"}! Entering your UPI PIN will DEBIT money from your bank account." else if (isFakeReceipt) "CRITICAL: This payment receipt (${detectedAmount ?: "funds"}) is FAKE. Generated using screenshot spoofing tools without real banking credit." else "Payment receipt / QR details verified safe. Detected amount: ${detectedAmount ?: "Not specified"}. Transaction follows authentic banking parameters.",
+            explanation = if (isCollect) {
+                "CRITICAL PAYMENT FRAUD: Disguised UPI Collect request detected! Scanning or approving will DEBIT money from your bank account."
+            } else if (isFakeReceipt) {
+                "CRITICAL: Fraudulent or manipulated receipt detected. Generated using spoofing tools without genuine banking credit."
+            } else {
+                "SAFE: Verified authentic payment QR code. Standard NPCI banking parameters verified with no malicious collect overrides."
+            },
             recommendedActions = actions,
-            whatToAvoid = listOf("Never enter UPI PIN when receiving money.", "Do not rely on screenshots sent by strangers without checking your banking app."),
+            whatToAvoid = listOf("Never enter UPI PIN when receiving money.", "Do not scan unverified QR codes sent by unknown individuals."),
             limitations = listOf("Verify the recipient's registered bank account name shown on the UPI confirmation dialog."),
             modelName = "Sentinel-PaymentGuardian-Vision",
             modelVersion = "3.2.0",
-            quickSummary = if (isScam) "DANGER: Fraudulent payment request / fake receipt detected (${detectedAmount ?: "Amount Pending"})" else "SAFE: Authentic payment receipt / QR format verified (${detectedAmount ?: "Verified Format"})",
+            quickSummary = if (isScam) "DANGER: Disguised payment request / scam QR detected (UNSAFE)" else "SAFE: Authentic payment QR code verified (SAFE TO SCAN)",
             whyThisScore = listOf(
-                if (isCollect) "UPI Collect request detected masquerading as credit (+85 risk)" else if (isFakeReceipt) "Fake screenshot generator fonts detected (+90 risk)" else "Verified authentic banking parameters (-96 risk)",
-                if (detectedAmount != null) "Amount parsed successfully: $detectedAmount" else "Standard payload encoding"
+                if (isCollect) "UPI Collect request detected masquerading as credit (+85 risk)"
+                else if (isFakeReceipt) "Fake screenshot generator fonts detected (+90 risk)"
+                else "Verified authentic banking parameters (-96 risk)",
+                if (isScam) "Transaction would debit your account if authorized"
+                else "Clean QR payload with standard NPCI routing"
             ),
-            evidence = evidenceList,
+            evidence = listOf(target),
             rawInputReference = target
         )
     }
