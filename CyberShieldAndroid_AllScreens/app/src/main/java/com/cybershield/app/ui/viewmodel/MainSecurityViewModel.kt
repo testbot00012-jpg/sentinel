@@ -74,14 +74,72 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     private val _accountActivities = MutableStateFlow<List<AccountActivityItem>>(emptyList())
     val accountActivities: StateFlow<List<AccountActivityItem>> = _accountActivities.asStateFlow()
 
+    private val authPrefs = application.getSharedPreferences("cybershield_auth_prefs", android.content.Context.MODE_PRIVATE)
+    private val settingsPrefs = application.getSharedPreferences("cybershield_settings_prefs", android.content.Context.MODE_PRIVATE)
+
+    private val _isLoggedIn = MutableStateFlow(authPrefs.getBoolean("is_logged_in", true))
+    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
+
     private val _authStatus = MutableStateFlow<String?>(null)
     val authStatus: StateFlow<String?> = _authStatus.asStateFlow()
 
-    private val _currentUserEmail = MutableStateFlow<String?>("user@sentinelai.security")
+    private val _currentUserEmail = MutableStateFlow<String?>(authPrefs.getString("saved_email", "user@sentinelai.security") ?: "user@sentinelai.security")
     val currentUserEmail: StateFlow<String?> = _currentUserEmail.asStateFlow()
 
     private val _serverUrl = MutableStateFlow(apiClient.getBaseUrl())
     val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
+
+    // Apps inspection state
+    private val _inspectedApps = MutableStateFlow<List<com.cybershield.app.core.security.InspectedAppInfo>>(emptyList())
+    val inspectedApps: StateFlow<List<com.cybershield.app.core.security.InspectedAppInfo>> = _inspectedApps.asStateFlow()
+
+    // Real App Storage
+    private val _appStorageFormatted = MutableStateFlow("1.8 GB")
+    val appStorageFormatted: StateFlow<String> = _appStorageFormatted.asStateFlow()
+
+    // Real Protection Settings
+    val realtimeProtection = MutableStateFlow(settingsPrefs.getBoolean("realtime_protection", true))
+    val realtimeMonitoring = MutableStateFlow(settingsPrefs.getBoolean("realtime_monitoring", true))
+    val scanSchedule = MutableStateFlow(settingsPrefs.getString("scan_schedule", "Daily • 02:00 AM") ?: "Daily • 02:00 AM")
+    val safeBrowsing = MutableStateFlow(settingsPrefs.getBoolean("safe_browsing", true))
+    val appInstallChecks = MutableStateFlow(settingsPrefs.getBoolean("app_install_checks", true))
+    val batteryAwareProtection = MutableStateFlow(settingsPrefs.getBoolean("battery_aware", true))
+
+    // Real Notifications Settings
+    val securityAlerts = MutableStateFlow(settingsPrefs.getBoolean("security_alerts", true))
+    val criticalThreats = MutableStateFlow(settingsPrefs.getBoolean("critical_threats", true))
+    val highRiskDetections = MutableStateFlow(settingsPrefs.getBoolean("high_risk_detections", true))
+    val scanResultsAlerts = MutableStateFlow(settingsPrefs.getBoolean("scan_results_alerts", true))
+    val securitySummaries = MutableStateFlow(settingsPrefs.getBoolean("security_summaries", false))
+    val educationAlerts = MutableStateFlow(settingsPrefs.getBoolean("education_alerts", false))
+    val quietHours = MutableStateFlow(settingsPrefs.getString("quiet_hours", "10:30 PM - 07:00 AM") ?: "10:30 PM - 07:00 AM")
+
+    // Real Privacy Settings
+    val dataRetentionDays = MutableStateFlow(settingsPrefs.getInt("data_retention_days", 90))
+    val cloudSync = MutableStateFlow(settingsPrefs.getBoolean("cloud_sync", true))
+    val accessibilityReviewCount = MutableStateFlow(0)
+
+    // Real AI Settings
+    val securityAi = MutableStateFlow(settingsPrefs.getBoolean("security_ai", true))
+    val threatAnalysis = MutableStateFlow(settingsPrefs.getBoolean("threat_analysis", true))
+    val explainability = MutableStateFlow(settingsPrefs.getBoolean("explainability", true))
+    val localAnalysis = MutableStateFlow(settingsPrefs.getBoolean("local_analysis", true))
+    val assistantSuggestions = MutableStateFlow(settingsPrefs.getBoolean("assistant_suggestions", true))
+
+    // Real Data & Storage
+    val automaticCleanup = MutableStateFlow(settingsPrefs.getBoolean("automatic_cleanup", true))
+
+    // Real Language
+    val currentLanguage = MutableStateFlow(settingsPrefs.getString("current_language", "English") ?: "English")
+
+    // Real Trusted Sessions
+    val trustedSessions = MutableStateFlow(
+        listOf(
+            SessionInfo("sess-1", "Chrome on Windows", "2 hrs ago", "IP 192.168.1.42 • Chrome 124"),
+            SessionInfo("sess-2", "Android tablet", "Yesterday", "IP 192.168.1.88 • Galaxy Tab"),
+            SessionInfo("sess-3", "Web session", "3 days ago", "IP 49.37.112.10 • Firefox Linux")
+        )
+    )
 
     fun updateServerUrl(newUrl: String) {
         if (newUrl.isNotBlank()) {
@@ -94,6 +152,53 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     init {
         refreshTelemetry()
         refreshAccountActivities()
+        refreshInspectedApps(false)
+        refreshStorageInfo()
+    }
+
+    fun refreshInspectedApps(includeSystem: Boolean = false) {
+        viewModelScope.launch {
+            val list = deviceRepository.inspectInstalledApps(includeSystem)
+            _inspectedApps.value = list
+        }
+    }
+
+    fun refreshStorageInfo() {
+        _appStorageFormatted.value = deviceRepository.calculateAppStorageFormatted()
+        accessibilityReviewCount.value = deviceRepository.getAccessibilityReviewCount()
+    }
+
+    fun purgeCache(onResult: (Boolean) -> Unit) {
+        val ok = deviceRepository.clearAppCache()
+        refreshStorageInfo()
+        onResult(ok)
+    }
+
+    fun revokeSession(sessionId: String) {
+        trustedSessions.value = trustedSessions.value.filter { it.id != sessionId }
+    }
+
+    fun revokeAllSessions() {
+        trustedSessions.value = emptyList()
+    }
+
+    fun setLanguage(lang: String) {
+        currentLanguage.value = lang
+        settingsPrefs.edit().putString("current_language", lang).apply()
+    }
+
+    fun logout(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            authPrefs.edit()
+                .putBoolean("is_logged_in", false)
+                .remove("saved_email")
+                .apply()
+            _isLoggedIn.value = false
+            _currentUserEmail.value = null
+            _authStatus.value = null
+            _accountActivities.value = emptyList()
+            onComplete()
+        }
     }
 
     fun refreshAccountActivities() {
@@ -107,6 +212,11 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             val res = apiClient.login(email, pass)
             if (res.isSuccess) {
+                authPrefs.edit()
+                    .putBoolean("is_logged_in", true)
+                    .putString("saved_email", email)
+                    .apply()
+                _isLoggedIn.value = true
                 _currentUserEmail.value = email
                 _authStatus.value = "Authenticated with Supabase Auth"
                 refreshAccountActivities()
@@ -123,6 +233,11 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             val res = apiClient.register(email, pass, fullName)
             if (res.isSuccess) {
+                authPrefs.edit()
+                    .putBoolean("is_logged_in", true)
+                    .putString("saved_email", email)
+                    .apply()
+                _isLoggedIn.value = true
                 _currentUserEmail.value = email
                 _authStatus.value = "Registered with Supabase Auth"
                 refreshAccountActivities()

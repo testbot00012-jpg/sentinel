@@ -55,22 +55,30 @@ data class ScanChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+data class SessionInfo(
+    val id: String,
+    val name: String,
+    val lastActive: String,
+    val details: String
+)
+
 object SentinelRiskColors {
-    val SafeGreen = androidx.compose.ui.graphics.Color(0xFF22C55E)      // 90–100: SAFE / STRONG SECURITY
-    val LightOrange = androidx.compose.ui.graphics.Color(0xFFFDBA74)    // 75–89: LOW CONCERN / REVIEW
-    val DarkAmber = androidx.compose.ui.graphics.Color(0xFFA88A00)      // 60–74: MEDIUM CONCERN
-    val DangerRed = androidx.compose.ui.graphics.Color(0xFFEF4444)      // 0–59: HIGH RISK / CRITICAL
+    val SafeGreen = androidx.compose.ui.graphics.Color(0xFF00E676)      // 90+: Green
+    val LightOrange = androidx.compose.ui.graphics.Color(0xFFFF9800)    // 75–90: Light orange shade
+    val BlackishYellow = androidx.compose.ui.graphics.Color(0xFF8A7300) // 60–75: Blackish-yellow
+    val DangerRed = androidx.compose.ui.graphics.Color(0xFFFF3B30)      // Below 60: Red
 
     val SAFE_GREEN = SafeGreen
     val LIGHT_ORANGE = LightOrange
-    val DARK_AMBER = DarkAmber
+    val BLACKISH_YELLOW = BlackishYellow
+    val DARK_AMBER = BlackishYellow
     val DANGER_RED = DangerRed
 
     fun getColorForScore(score: Int): androidx.compose.ui.graphics.Color {
         return when {
             score >= 90 -> SafeGreen
             score >= 75 -> LightOrange
-            score >= 60 -> DarkAmber
+            score >= 60 -> BlackishYellow
             else -> DangerRed
         }
     }

@@ -70,7 +70,7 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
             startDestination = "splash",
             modifier = Modifier.padding(if (showBottomBar) padding else PaddingValues(0.dp))
         ) {
-            composable("splash") { SplashScreen(nav) }
+            composable("splash") { SplashScreen(nav, viewModel) }
             composable("login") { LoginScreen(nav, viewModel) }
             composable("register") { RegisterScreen(nav, viewModel) }
             composable("forgot-password") { ForgotPasswordScreen(nav) }
@@ -99,13 +99,23 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
             }
             composable("feature/{route}") { backStack ->
                 val route = backStack.arguments?.getString("route") ?: ""
-                val spec = ScreenRegistry.find(route)
-                FeatureScreen(nav, spec, viewModel)
+                if (route.startsWith("19-settings-") || route.startsWith("settings-detail-")) {
+                    val spec = ScreenRegistry.find(route)
+                    SettingsDetailScreen(nav, spec, viewModel)
+                } else {
+                    val spec = ScreenRegistry.find(route)
+                    FeatureScreen(nav, spec, viewModel)
+                }
             }
             composable("screen/{route}") { backStack ->
                 val route = backStack.arguments?.getString("route") ?: ""
-                val spec = ScreenRegistry.find(route)
-                FeatureScreen(nav, spec, viewModel)
+                if (route.startsWith("19-settings-") || route.startsWith("settings-detail-")) {
+                    val spec = ScreenRegistry.find(route)
+                    SettingsDetailScreen(nav, spec, viewModel)
+                } else {
+                    val spec = ScreenRegistry.find(route)
+                    FeatureScreen(nav, spec, viewModel)
+                }
             }
         }
     }
@@ -183,7 +193,7 @@ private fun BottomBar(nav: NavHostController) {
 }
 
 @Composable
-private fun TopBar(title: String, nav: NavHostController, showBack: Boolean = true) {
+fun TopBar(title: String, nav: NavHostController, showBack: Boolean = true) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -203,7 +213,7 @@ private fun TopBar(title: String, nav: NavHostController, showBack: Boolean = tr
 }
 
 @Composable
-private fun FigmaHeader(
+fun FigmaHeader(
     title: String,
     subtitle: String,
     nav: NavHostController,
@@ -253,7 +263,7 @@ private fun FigmaHeader(
 }
 
 @Composable
-private fun FigmaSubHeader(
+fun FigmaSubHeader(
     title: String,
     subtitle: String,
     nav: NavHostController
@@ -2584,31 +2594,7 @@ private fun DeviceHealthScreen(nav: NavHostController, vm: MainSecurityViewModel
 
 @Composable
 private fun AppsManagerScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    val telemetry by vm.telemetry.collectAsState()
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        item {
-            TopBar("Apps Manager", nav)
-            SectionTitle("Application Inventory", "Package visibility & risk assessment")
-        }
-        item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Installed Applications", fontWeight = FontWeight.Bold)
-                Text("${telemetry?.installedAppCount ?: 0} packages identified via PackageManager", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-            }
-        }
-        val appScreens = listOf("Installed Applications", "Dangerous Apps", "Suspicious Apps", "App Permissions", "App Security Report")
-        items(appScreens) { title ->
-            val spec = ScreenRegistry.all.firstOrNull { it.title == title }
-            FeatureRow(title, "Open app inspection") {
-                if (spec != null) nav.navigate("feature/${spec.route}")
-            }
-        }
-    }
+    FullAppsManagerScreen(nav, vm)
 }
 
 @Composable
@@ -3229,217 +3215,12 @@ private fun HistoryItemRow(
 
 @Composable
 private fun SettingsScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        item {
-            FigmaHeader(
-                title = "Settings",
-                subtitle = "Privacy, protection & account",
-                nav = nav,
-                showBell = true
-            )
-            Spacer(Modifier.height(4.dp))
-        }
-
-        // Profile Card: Your account
-        item {
-            Card(
-                onClick = { nav.navigate("settings_detail/user_account") },
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Line),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .background(Color(0xFF122235), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = Cyan, modifier = Modifier.size(22.dp))
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Your account", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text("Protected • app lock enabled", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
-                    }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-        }
-
-        // 8 Settings Menu items
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingsMenuItem(
-                    title = "Protection",
-                    subtitle = "Real-time + scan schedule",
-                    icon = Icons.Default.Shield,
-                    iconColor = Cyan,
-                    onClick = { nav.navigate("settings_detail/realtime_protection_settings") }
-                )
-                SettingsMenuItem(
-                    title = "Notifications",
-                    subtitle = "Alerts + quiet hours",
-                    icon = Icons.Default.NotificationsNone,
-                    iconColor = Color(0xFFA855F7),
-                    onClick = { nav.navigate("settings_detail/notification_preferences") }
-                )
-                SettingsMenuItem(
-                    title = "Privacy",
-                    subtitle = "Permissions + retention",
-                    icon = Icons.Default.Lock,
-                    iconColor = Color(0xFF00E676),
-                    onClick = { nav.navigate("privacy") }
-                )
-                SettingsMenuItem(
-                    title = "AI settings",
-                    subtitle = "Models + explanations",
-                    icon = Icons.Default.AutoAwesome,
-                    iconColor = Cyan,
-                    onClick = { nav.navigate("ai") }
-                )
-                SettingsMenuItem(
-                    title = "Trusted devices",
-                    subtitle = "Sessions + emergency",
-                    icon = Icons.Default.PhoneAndroid,
-                    iconColor = Color(0xFFFBBF24),
-                    onClick = { nav.navigate("device") }
-                )
-                SettingsMenuItem(
-                    title = "Data & storage",
-                    subtitle = "Export + secure delete",
-                    icon = Icons.Default.Folder,
-                    iconColor = Color(0xFFFBBF24),
-                    onClick = { nav.navigate("storage") }
-                )
-                SettingsMenuItem(
-                    title = "Language",
-                    subtitle = "English • Telugu • Hindi",
-                    icon = Icons.Default.Language,
-                    iconColor = Color(0xFFA855F7),
-                    onClick = { nav.navigate("settings_detail/language_selector") }
-                )
-                SettingsMenuItem(
-                    title = "Security logs",
-                    subtitle = "Audit & access history",
-                    icon = Icons.Default.AccessTime,
-                    iconColor = Muted,
-                    onClick = { nav.navigate("history") }
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "CyberShield • Android consumer app",
-                color = Muted,
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun SettingsMenuItem(
-    title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconColor: Color,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Line),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(subtitle, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 1.dp))
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp))
-        }
-    }
+    MainSettingsScreen(nav, vm)
 }
 
 @Composable
 private fun SettingsDetailScreen(nav: NavHostController, spec: ScreenSpec, vm: MainSecurityViewModel) {
-    val currentEmail by vm.currentUserEmail.collectAsState()
-    val authStatus by vm.authStatus.collectAsState()
-    val serverUrl by vm.serverUrl.collectAsState()
-    var customUrlInput by remember { mutableStateOf(serverUrl) }
-
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        item {
-            TopBar(spec.title, nav)
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Settings Section", color = Muted)
-                Text(spec.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-                if (spec.title.contains("Account", true)) {
-                    Text("User: ${currentEmail ?: "user@sentinelai.security"}", color = Cyan, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-                    Text("Provider: Supabase Auth & PostgreSQL", color = Color(0xFF34D399), fontSize = 12.sp)
-                }
-                Text("Backend Gateway: $serverUrl", color = Cyan, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
-            }
-        }
-        if (spec.title.contains("Network", true) || spec.title.contains("Protection", true)) {
-            item {
-                GlassCard(Modifier.padding(top = 8.dp)) {
-                    Text("Cloud Gateway URL (Railway)", fontWeight = FontWeight.SemiBold)
-                    Text("Connect to your deployed Railway backend to protect all physical devices over the internet.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = customUrlInput,
-                        onValueChange = { customUrlInput = it },
-                        label = { Text("Railway URL (e.g. https://sentinel.up.railway.app)", fontSize = 11.sp) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Button(
-                        onClick = { vm.updateServerUrl(customUrlInput) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Cyan),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Connect to Gateway", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-        val options = when {
-            spec.title.contains("Account", true) -> listOf("Profile Credentials (Supabase Auth)", "Multi-Factor Authentication", "Recent Account Activities")
-            spec.title.contains("Protection", true) -> listOf("Real-Time Threat Shield", "Background Monitoring", "Download Gatekeeper")
-            spec.title.contains("Notification", true) -> listOf("Critical Threat Push", "High-Risk Alerts", "Daily Summary")
-            spec.title.contains("Privacy", true) -> listOf("Data Minimization", "Telemetry Controls", "Zero Cloud Storage Mode")
-            spec.title.contains("AI", true) -> listOf("On-Device ML Inference", "Model Version Registry", "Explainability Verbosity")
-            spec.title.contains("Language", true) -> listOf("English (Default)", "हिन्दी (Hindi)", "తెలుగు (Telugu)")
-            else -> listOf("Supabase Security Audit Log", "Export JSON Evidence", "Purge Local Cache")
-        }
-        items(options) { opt ->
-            GlassCard(Modifier.padding(top = 8.dp)) {
-                Text(opt, fontWeight = FontWeight.SemiBold)
-                Text("Status: Configured & Active", color = Cyan, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-            }
-        }
-    }
+    UnifiedSettingsDetailScreen(nav, spec, vm)
 }
 
 @Composable
@@ -3888,10 +3669,15 @@ private fun getDetailedFeatureExplanation(spec: ScreenSpec, t: com.cybershield.a
 }
 
 @Composable
-private fun SplashScreen(nav: NavHostController) {
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(2200)
-        nav.navigate("login") { popUpTo("splash") { inclusive = true } }
+private fun SplashScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    val isLoggedIn by vm.isLoggedIn.collectAsState()
+    LaunchedEffect(isLoggedIn) {
+        kotlinx.coroutines.delay(1800)
+        if (isLoggedIn) {
+            nav.navigate("home") { popUpTo("splash") { inclusive = true } }
+        } else {
+            nav.navigate("login") { popUpTo("splash") { inclusive = true } }
+        }
     }
     Box(
         modifier = Modifier
@@ -3906,24 +3692,39 @@ private fun SplashScreen(nav: NavHostController) {
         ) {
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(120.dp)
+                modifier = Modifier.size(130.dp)
             ) {
                 CircularProgressIndicator(
                     color = Cyan,
                     strokeWidth = 3.dp,
-                    modifier = Modifier.size(110.dp)
+                    modifier = Modifier.size(120.dp)
                 )
-                Icon(
-                    imageVector = Icons.Default.Shield,
-                    contentDescription = "Sentinel AI Shield",
-                    tint = Cyan,
-                    modifier = Modifier.size(60.dp)
-                )
+                Surface(
+                    color = Color(0xFF0F1E2E),
+                    shape = CircleShape,
+                    border = BorderStroke(2.dp, Cyan.copy(alpha = 0.7f)),
+                    modifier = Modifier.size(80.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = "Sentinel AI Shield",
+                            tint = Cyan,
+                            modifier = Modifier.size(46.dp)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFF00E676),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(28.dp))
             Text(
-                text = "SENTINEL AI",
-                fontSize = 32.sp,
+                text = "CYBERSHIELD AI",
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 2.sp,
                 color = Color.White
@@ -3951,7 +3752,7 @@ private fun SplashScreen(nav: NavHostController) {
                         .background(Color(0xFF00E676), RoundedCornerShape(4.dp))
                 )
                 Text(
-                    text = "Security Core: Initializing Live Telemetry",
+                    text = if (isLoggedIn) "Session Verified • Resuming Defense" else "Security Core: Initializing Live Telemetry",
                     color = Color(0xFFC0D0E0),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Cyber Shield Crest -->
+    <path
+        android:strokeColor="#31D7FF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#151A24"
+        android:pathData="M54,22 L78,32 C78,56 68,74 54,84 C40,74 30,56 30,32 Z" />
+    
+    <!-- Inner Shield Glow Accent -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,28 L72,36 C72,54 64,68 54,76 C44,68 36,54 36,36 Z" />
+
+    <!-- Central AI Security Core (Diamond / Star) -->
+    <path
+        android:fillColor="#31D7FF"
+        android:pathData="M54,42 L60,52 L54,62 L48,52 Z" />
+
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M54,48 L57,52 L54,56 L51,52 Z" />
+
+    <!-- Circuit Trace Lines -->
+    <path
+        android:strokeColor="#31D7FF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,28 L54,38" />
+
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,66 L54,76" />
+
+    <path
+        android:strokeColor="#31D7FF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M42,52 L48,52" />
+
+    <path
+        android:strokeColor="#31D7FF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M60,52 L66,52" />
+
+    <!-- Circuit Nodes (Dots) -->
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M41,52m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M67,52m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+</vector>
