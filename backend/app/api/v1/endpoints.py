@@ -649,7 +649,17 @@ async def scan_deepfake(
     if req.features:
         has_blink = req.features.get("blinking_irregularity", False)
         has_boundary = req.features.get("boundary_glitch", False)
-        has_synthetic = req.features.get("synthetic_texture", False) or req.features.get("diffusion_residual", False)
+        smooth_var = req.features.get("smooth_variance", None)
+        edge_ratio = req.features.get("edge_to_texture_ratio", None)
+        has_pixel_anomaly = (smooth_var is not None and smooth_var < 1.35) or (edge_ratio is not None and edge_ratio > 7.0)
+        has_synthetic = (
+            req.features.get("synthetic_texture", False) or
+            req.features.get("diffusion_residual", False) or
+            req.features.get("is_likely_ai", False) or
+            req.features.get("is_ai", False) or
+            has_pixel_anomaly or
+            (req.features.get("ai_probability", 0.0) >= 0.50)
+        )
 
         if has_blink:
             signals.append(ScannerSignal(
@@ -675,6 +685,14 @@ async def scan_deepfake(
                 description="2D FFT radial frequency spectrum indicates latent generative synthesis.",
                 evidence_value="DiffusionGridResidual"
             ))
+            if smooth_var is not None or edge_ratio is not None:
+                signals.append(ScannerSignal(
+                    name="Synthetic Dermis Smoothing vs. Edge Gradient Disparity",
+                    type="TEXTURE_ANALYSIS",
+                    severity="CRITICAL",
+                    description=f"Surface displays porcelain smoothing with edge disparity ({edge_ratio or 'high'}x).",
+                    evidence_value=f"EdgeRatio={edge_ratio}, SmoothVar={smooth_var}"
+                ))
 
         if has_blink or has_boundary or has_synthetic:
             is_ai = True

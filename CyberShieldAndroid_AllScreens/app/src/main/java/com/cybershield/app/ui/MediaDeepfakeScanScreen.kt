@@ -390,16 +390,13 @@ fun MediaDeepfakeScanScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                                     analysisStep = i
                                     delay(400)
                                 }
-                                if (selectedImageUri != null) {
-                                    vm.scanDeepfakeMediaSuspend(selectedImageUri!!, context)
-                                } else {
-                                    // Trigger via API client with sample metadata
-                                    val result = com.cybershield.app.core.network.CyberShieldApiClient().scanDeepfake(
-                                        fileName = selectedFileName,
-                                        isLikelyAi = isAiSampleSelected
-                                    )
-                                    vm.addScanResult(result)
-                                }
+                                vm.scanDeepfakeMediaSuspend(
+                                    uri = selectedImageUri,
+                                    context = context,
+                                    bitmap = selectedBitmap,
+                                    fallbackFileName = selectedFileName,
+                                    isSampleAi = isAiSampleSelected
+                                )
                                 isAnalyzing = false
                                 nav.navigate("media_result")
                             }

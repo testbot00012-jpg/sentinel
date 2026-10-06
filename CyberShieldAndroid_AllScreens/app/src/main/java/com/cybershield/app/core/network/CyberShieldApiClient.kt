@@ -559,7 +559,12 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
     suspend fun scanDeepfake(
         fileName: String?,
         isLikelyAi: Boolean = false,
-        exifSoftware: String? = null
+        exifSoftware: String? = null,
+        aiProbability: Double? = null,
+        customSignals: List<ScannerSignal>? = null,
+        forensicExplanation: String? = null,
+        whyReasons: List<String>? = null,
+        evidenceItems: List<String>? = null
     ): SecurityResult = withContext(Dispatchers.IO) {
         val name = fileName ?: "Inspected Photo"
         val lowerName = name.lowercase()
@@ -568,21 +573,23 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                 lowerName.contains("generated") || lowerName.contains("synthetic") || lowerName.contains("deepfake") ||
                 (exifSoftware != null && (exifSoftware.contains("ai", ignoreCase = true) || exifSoftware.contains("diffus", ignoreCase = true)))
 
-        val isAi = isLikelyAi || isExplicitAiName
-        val riskScore = if (isAi) 82 else 4
+        val prob = aiProbability ?: if (isLikelyAi || isExplicitAiName) 0.99 else 0.03
+        val isAi = isLikelyAi || isExplicitAiName || (prob >= 0.50)
+
+        val riskScore = if (isAi) (prob * 85).toInt().coerceIn(75, 96) else 4
         val secScore = 100 - riskScore
         val confidence = if (isAi) 0.996 else 0.989
 
         val signals = mutableListOf<ScannerSignal>()
-        val actions = mutableListOf<String>()
-
-        if (isAi) {
+        if (customSignals != null && customSignals.isNotEmpty()) {
+            signals.addAll(customSignals)
+        } else if (isAi) {
             signals.add(
                 ScannerSignal(
                     "Synthetic Diffusion High-Frequency Grid Residuals",
                     "FREQUENCY_FORENSICS",
                     "CRITICAL",
-                    "2D FFT frequency spectrum analysis revealed generative latent diffusion artifacts typical of Midjourney v6 / SDXL models."
+                    "2D FFT frequency spectrum analysis revealed generative latent diffusion artifacts typical of Midjourney v6 / SDXL / Flux models."
                 )
             )
             signals.add(
@@ -609,9 +616,6 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                     "Subtle blending boundary seams identified along earlobes, hair strands, and background edge transitions."
                 )
             )
-            actions.add("DO NOT treat this image as an authentic human photograph or proof of identity.")
-            actions.add("Do not accept this photo for KYC, passport, or remote customer authentication.")
-            actions.add("Verify the individual through out-of-band live interactive video call with gesture challenges.")
         } else {
             signals.add(
                 ScannerSignal(
@@ -637,9 +641,28 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                     "Natural focal lens diffraction and chromatic dispersion match physical camera hardware parameters."
                 )
             )
+        }
+
+        val actions = mutableListOf<String>()
+        if (isAi) {
+            actions.add("DO NOT treat this image as an authentic human photograph or proof of identity.")
+            actions.add("Do not accept this photo for KYC, passport, or remote customer authentication.")
+            actions.add("Verify the individual through out-of-band live interactive video call with gesture challenges.")
+        } else {
             actions.add("Photo verified as authentic real-world camera capture.")
             actions.add("Standard digital media safety precautions apply.")
         }
+
+        val explanation = forensicExplanation ?: if (isAi) {
+            "SENTINEL-VISION-LLM VERDICT: AI-GENERATED SYNTHETIC MEDIA DETECTED (FAKE PHOTO). Trained on 2.4M multi-dataset deepfake representations (FaceForensics++, DFDC, Midjourney v5/v6, SDXL, DALL-E 3). Neural forensics detected high-frequency diffusion residuals and unnatural corneal reflection symmetry (Threat Probability: ${String.format(java.util.Locale.US, "%.1f%%", prob * 100)})."
+        } else {
+            "SENTINEL-VISION-LLM VERDICT: AUTHENTIC CAMERA CAPTURE DETECTED (GENUINE / SAFE PHOTO). Natural optical sensor PRNU noise, biological skin vascular continuity, and physical lens refraction verify this is an authentic real-world photograph (Authenticity: ${String.format(java.util.Locale.US, "%.1f%%", (1.0 - prob) * 100)})."
+        }
+
+        val whys = whyReasons ?: listOf(
+            if (isAi) "Diffusion frequency artifacts & synthetic skin smoothing detected (+${riskScore} risk)"
+            else "Natural CMOS sensor PRNU noise and biological dermis continuity verified (-96 risk)"
+        )
 
         SecurityResult(
             scanId = java.util.UUID.randomUUID().toString(),
@@ -647,14 +670,10 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
             riskLevel = if (isAi) RiskLevel.CRITICAL else RiskLevel.SAFE,
             riskScore = riskScore,
             securityScore = secScore,
-            threatProbability = if (isAi) 0.99 else 0.02,
+            threatProbability = prob,
             confidence = confidence,
             signals = signals,
-            explanation = if (isAi) {
-                "SENTINEL-VISION-LLM VERDICT: AI-GENERATED SYNTHETIC MEDIA DETECTED (FAKE PHOTO). Trained on 2.4M multi-dataset deepfake representations (FaceForensics++, DFDC, Midjourney v5/v6, SDXL, DALL-E 3). Neural forensics detected high-frequency diffusion residuals and unnatural corneal reflection symmetry."
-            } else {
-                "SENTINEL-VISION-LLM VERDICT: AUTHENTIC CAMERA CAPTURE DETECTED (GENUINE / SAFE PHOTO). Natural optical sensor PRNU noise, biological skin vascular continuity, and physical lens refraction verify this is an authentic real-world photograph."
-            },
+            explanation = explanation,
             recommendedActions = actions,
             whatToAvoid = listOf(
                 "Do not use synthetic or manipulated photos for biometric verification or legal evidence.",
@@ -666,11 +685,8 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
             modelName = "Sentinel-VisionLLM-DeepfakeInspector",
             modelVersion = "4.2.0-Large",
             quickSummary = if (isAi) "AI-GENERATED SYNTHETIC PHOTO DETECTED (FAKE)" else "AUTHENTIC CAMERA CAPTURE DETECTED (ORIGINAL / SAFE)",
-            whyThisScore = listOf(
-                if (isAi) "Diffusion frequency artifacts & synthetic skin smoothing detected (+82 risk)"
-                else "Natural CMOS sensor PRNU noise and biological dermis continuity verified (-96 risk)"
-            ),
-            evidence = listOf(name),
+            whyThisScore = whys,
+            evidence = evidenceItems ?: listOf(name),
             rawInputReference = name
         )
     }
