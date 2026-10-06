@@ -32,7 +32,7 @@ class DashboardController {
         window.api.getAccountDevices().catch(() => [])
       ]);
 
-      this.renderScore(scoreData);
+      this.renderScore(scoreData, historyData);
       this.renderStats(historyData, alertsData, devicesData);
       this.renderAlerts(alertsData);
       this.renderRecentActivity(historyData);
@@ -41,8 +41,12 @@ class DashboardController {
     }
   }
 
-  renderScore(scoreData) {
-    const score = (scoreData && scoreData.overall_score !== undefined) ? scoreData.overall_score : 94;
+  renderScore(scoreData, historyData) {
+    const hasHistory = Array.isArray(historyData) && historyData.length > 0;
+    // Calculate or use real score from backend; if 0 scans, clean 100 baseline
+    const score = (scoreData && scoreData.overall_score !== undefined) 
+      ? scoreData.overall_score 
+      : (hasHistory ? 85 : 100);
     
     // Animate score number
     this.animateNumber(this.scoreNumber, score);
@@ -54,11 +58,16 @@ class DashboardController {
     if (this.scoreCircle) {
       this.scoreCircle.style.strokeDashoffset = offset;
       
-      if (score >= 85) {
+      if (!hasHistory) {
+        this.scoreCircle.style.stroke = '#10b981'; // Green
+        this.postureTitle.textContent = 'CLEAN SECURITY BASELINE';
+        this.postureTitle.style.color = '#34d399';
+        this.postureDesc.textContent = 'No threats recorded for this account. Run scans using the modules below to analyze posture.';
+      } else if (score >= 85) {
         this.scoreCircle.style.stroke = '#10b981'; // Green
         this.postureTitle.textContent = 'EXCELLENT DEFENSE POSTURE';
         this.postureTitle.style.color = '#34d399';
-        this.postureDesc.textContent = 'Zero unpatched critical vulnerabilities detected. Neural shields and DNS verification actively armed.';
+        this.postureDesc.textContent = 'All analyzed targets and endpoints conform to verified safety baselines.';
       } else if (score >= 60) {
         this.scoreCircle.style.stroke = '#f59e0b'; // Amber
         this.postureTitle.textContent = 'MODERATE EXPOSURE DETECTED';
@@ -66,7 +75,7 @@ class DashboardController {
         this.postureDesc.textContent = 'Suspicious artifacts or recent alerts detected. Review flagged items in the history audit.';
       } else {
         this.scoreCircle.style.stroke = '#ef4444'; // Red
-        this.postureTitle.textContent = 'CRITICAL RISKS UNRESOLVED';
+        this.postureTitle.textContent = 'CRITICAL RISKS DETECTED';
         this.postureTitle.style.color = '#f87171';
         this.postureDesc.textContent = 'Urgent high-risk threats detected across active devices. Immediate remediation required.';
       }
@@ -75,14 +84,15 @@ class DashboardController {
     // Breakdown bars
     if (scoreData && scoreData.breakdown) {
       const b = scoreData.breakdown;
-      this.updateBar('bar-web', 'val-web', b.web_phishing || 95, '#00f2fe');
-      this.updateBar('bar-app', 'val-app', b.app_security || 90, '#6366f1');
-      this.updateBar('bar-device', 'val-device', b.device_posture || 95, '#10b981');
-      this.updateBar('bar-account', 'val-account', b.account_security || 90, '#f59e0b');
+      this.updateBar('bar-web', 'val-web', b.web_phishing ?? 100, '#00f2fe');
+      this.updateBar('bar-app', 'val-app', b.app_security ?? 100, '#6366f1');
+      this.updateBar('bar-device', 'val-device', b.device_posture ?? 100, '#10b981');
+      this.updateBar('bar-account', 'val-account', b.account_security ?? 100, '#f59e0b');
     }
   }
 
   updateBar(barId, valId, score, color) {
+
     const bar = document.getElementById(barId);
     const val = document.getElementById(valId);
     if (bar) {

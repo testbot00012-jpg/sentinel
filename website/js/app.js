@@ -1,10 +1,9 @@
 /**
- * Sentinel AI - Application Core, Navigation Router & Internationalization
+ * Sentinel AI - Core Application & Global Multi-Page Utilities
  */
 
 class SentinelApp {
   constructor() {
-    this.currentTab = 'dashboard';
     this.toastContainer = document.getElementById('toast-container');
     this.bindNavigation();
     this.bindModals();
@@ -12,86 +11,36 @@ class SentinelApp {
   }
 
   init() {
-    // Check URL hash for direct routing
-    const hash = window.location.hash.replace('#/', '').replace('#', '');
-    if (hash && ['dashboard', 'url', 'sms', 'deepfake', 'qr', 'assistant', 'history'].includes(hash)) {
-      this.switchTab(hash);
-    } else {
-      this.switchTab('dashboard');
-    }
-
-    // Init controllers
-    if (window.authController) window.authController.init();
-    if (window.dashboardController) window.dashboardController.loadDashboard();
-    if (window.historyController) window.historyController.loadHistory();
-  }
-
-  bindNavigation() {
-    // Nav links
+    // Highlight active nav item based on current page filename
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
     document.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const tab = link.getAttribute('data-tab');
-        if (tab) {
-          this.switchTab(tab);
-          window.location.hash = `#/${tab}`;
-        }
-      });
-    });
-
-    // Quick launcher shortcut cards
-    document.querySelectorAll('.quick-action-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-        e.preventDefault();
-        const tab = card.getAttribute('data-target-tab');
-        if (tab) {
-          this.switchTab(tab);
-          window.location.hash = `#/${tab}`;
-        }
-      });
-    });
-
-    window.addEventListener('hashchange', () => {
-      const hash = window.location.hash.replace('#/', '').replace('#', '');
-      if (hash && hash !== this.currentTab) {
-        this.switchTab(hash);
-      }
-    });
-  }
-
-  switchTab(tabId) {
-    this.currentTab = tabId;
-
-    // Update nav links active state
-    document.querySelectorAll('.nav-link').forEach(link => {
-      if (link.getAttribute('data-tab') === tabId) {
+      const href = link.getAttribute('href');
+      if (href && (href === currentPath || (currentPath === '' && href === 'index.html'))) {
         link.classList.add('active');
       } else {
         link.classList.remove('active');
       }
     });
 
-    // Show active pane
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      if (pane.id === `tab-${tabId}`) {
-        pane.classList.add('active');
-      } else {
-        pane.classList.remove('active');
-      }
-    });
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    // Refresh context if entering history or dashboard
-    if (tabId === 'history' && window.historyController) {
-      window.historyController.loadHistory();
-    } else if (tabId === 'dashboard' && window.dashboardController) {
-      window.dashboardController.loadDashboard();
+    // Initialize Auth state on all pages
+    if (window.authController) {
+      window.authController.init();
     }
   }
 
+  bindNavigation() {
+    // Quick launcher shortcut cards on index.html
+    document.querySelectorAll('.quick-action-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const href = card.getAttribute('data-href');
+        if (href) {
+          window.location.href = href;
+        }
+      });
+    });
+  }
+
   bindModals() {
-    // Close modal on backdrop click
     document.querySelectorAll('.modal-backdrop').forEach(m => {
       m.addEventListener('click', (e) => {
         if (e.target === m) {
@@ -100,7 +49,6 @@ class SentinelApp {
       });
     });
 
-    // Modal close buttons
     document.querySelectorAll('.modal-close-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const modal = btn.closest('.modal-backdrop');
@@ -113,20 +61,34 @@ class SentinelApp {
     const langSelect = document.getElementById('global-lang-select');
     if (!langSelect) return;
 
+    // Restore saved language if any
+    const savedLang = localStorage.getItem('sentinel_preferred_lang') || 'en';
+    langSelect.value = savedLang;
+
     langSelect.addEventListener('change', (e) => {
       const lang = e.target.value;
+      localStorage.setItem('sentinel_preferred_lang', lang);
+
       const smsLang = document.getElementById('sms-lang-select');
       const chatLang = document.getElementById('chat-lang-select');
       if (smsLang) smsLang.value = lang;
       if (chatLang) chatLang.value = lang;
 
       const langNames = { en: 'English', hi: 'हिन्दी (Hindi)', te: 'తెలుగు (Telugu)' };
-      window.toast(`Language switched to ${langNames[lang] || lang}`, 'info');
+      this.toast(`Language set to ${langNames[lang] || lang}`, 'info');
     });
   }
 
   toast(message, type = 'info') {
-    if (!this.toastContainer) return;
+    if (!this.toastContainer) {
+      this.toastContainer = document.getElementById('toast-container');
+      if (!this.toastContainer) {
+        this.toastContainer = document.createElement('div');
+        this.toastContainer.id = 'toast-container';
+        this.toastContainer.className = 'toast-container';
+        document.body.appendChild(this.toastContainer);
+      }
+    }
 
     const el = document.createElement('div');
     el.className = `toast ${type}`;
@@ -151,7 +113,6 @@ class SentinelApp {
 window.app = new SentinelApp();
 window.toast = (msg, type) => window.app.toast(msg, type);
 
-// Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
   window.app.init();
 });

@@ -5,12 +5,14 @@
 
 class SentinelApiClient {
   constructor() {
-    // Connect directly to Sentinel AI FastAPI backend API
-    this.baseUrl = window.SENTINEL_API_URL || 'http://localhost:8000/api/v1';
+    // Live deployed Railway backend API
+    const DEPLOYED_BACKEND_URL = 'https://sentinel-production-96cf.up.railway.app/api/v1';
+    this.baseUrl = window.SENTINEL_API_URL || DEPLOYED_BACKEND_URL;
     this.tokenKey = 'sentinel_auth_token';
     this.userKey = 'sentinel_user_profile';
     this.deviceIdKey = 'sentinel_device_id';
   }
+
 
 
 

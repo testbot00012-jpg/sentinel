@@ -11,7 +11,18 @@ class AssistantController {
     this.activeScanContextId = null;
 
     this.bindEvents();
+    
+    // Check if opened with a specific scan context from another page
+    const urlParams = new URLSearchParams(window.location.search);
+    const scanId = urlParams.get('scan_id');
+    if (scanId) {
+      this.activeScanContextId = scanId;
+      setTimeout(() => {
+        this.appendMessage('assistant', `I have loaded scan record \`${scanId}\` from your recent analysis into active context. What would you like to understand about this threat assessment?`);
+      }, 400);
+    }
   }
+
 
   bindEvents() {
     if (this.sendBtn) {
@@ -128,10 +139,7 @@ class AssistantController {
 
   discussScan(scanId) {
     this.activeScanContextId = scanId;
-    // Switch to assistant tab
-    window.app.switchTab('assistant');
-
-    this.appendMessage('assistant', `I have loaded scan record \`${scanId}\` into active context. What would you like to understand about this threat assessment?`);
+    window.location.href = `assistant.html?scan_id=${encodeURIComponent(scanId)}`;
   }
 }
 

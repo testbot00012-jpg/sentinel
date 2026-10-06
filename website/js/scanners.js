@@ -484,8 +484,12 @@ class ScannersController {
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const payload = input.value.trim() || 'upi://pay?pa=merchant@icici&pn=VerifiedStore';
-      await this.runQrScan(payload);
+      const payload = input.value.trim();
+      if (!payload && !this.qrImageBase64) {
+        window.toast('Please enter a UPI payment string or upload a QR image.', 'error');
+        return;
+      }
+      await this.runQrScan(payload || '[Uploaded Payment Photo]');
     });
 
     document.querySelectorAll('.preset-qr-btn').forEach(btn => {
