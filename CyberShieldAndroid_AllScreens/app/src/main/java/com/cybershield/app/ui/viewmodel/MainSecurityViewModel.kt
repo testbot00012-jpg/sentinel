@@ -466,15 +466,96 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         if (reference.isBlank()) return
         viewModelScope.launch {
             _isScanning.value = true
-            val result = apiClient.scanQr("payment://$reference")
-            val customized = result.copy(
-                scannerType = "PAYMENT_FRAUD",
-                rawInputReference = reference
-            )
-            _currentScanResult.value = customized
-            _scanHistory.value = listOf(customized) + _scanHistory.value
+            val result = apiClient.scanPaymentScreenshot(imageName = reference, reference = reference)
+            _currentScanResult.value = result
+            _scanHistory.value = listOf(result) + _scanHistory.value
             _isScanning.value = false
         }
+    }
+
+    fun scanCall(phoneNumber: String) {
+        if (phoneNumber.isBlank()) return
+        viewModelScope.launch {
+            _isScanning.value = true
+            val result = apiClient.scanCall(phoneNumber.trim())
+            _currentScanResult.value = result
+            _scanHistory.value = listOf(result) + _scanHistory.value
+            _isScanning.value = false
+        }
+    }
+
+    fun scanPaymentPhoto(uri: android.net.Uri, context: android.content.Context) {
+        viewModelScope.launch {
+            _isScanning.value = true
+            var fileName = "Payment Screenshot"
+            try {
+                val cursor = context.contentResolver.query(uri, null, null, null, null)
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex >= 0) fileName = it.getString(nameIndex) ?: fileName
+                    }
+                }
+            } catch (_: Exception) {}
+
+            val result = apiClient.scanPaymentScreenshot(imageName = fileName, reference = fileName)
+            _currentScanResult.value = result
+            _scanHistory.value = listOf(result) + _scanHistory.value
+            _isScanning.value = false
+        }
+    }
+
+    fun scanDeepfakeMedia(uri: android.net.Uri, context: android.content.Context) {
+        viewModelScope.launch {
+            _isScanning.value = true
+            var fileName = "Inspected Photo"
+            var isAiDetected = false
+            var softwareTag: String? = null
+
+            try {
+                val cursor = context.contentResolver.query(uri, null, null, null, null)
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex >= 0) fileName = it.getString(nameIndex) ?: fileName
+                    }
+                }
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    val exif = android.media.ExifInterface(inputStream)
+                    softwareTag = exif.getAttribute(android.media.ExifInterface.TAG_SOFTWARE)
+                    if (softwareTag?.contains("midjourney", ignoreCase = true) == true ||
+                        softwareTag?.contains("stable", ignoreCase = true) == true ||
+                        softwareTag?.contains("dall", ignoreCase = true) == true ||
+                        softwareTag?.contains("flux", ignoreCase = true) == true ||
+                        softwareTag?.contains("ai", ignoreCase = true) == true) {
+                        isAiDetected = true
+                    }
+                }
+            } catch (_: Exception) {}
+
+            if (fileName.contains("ai", ignoreCase = true) ||
+                fileName.contains("fake", ignoreCase = true) ||
+                fileName.contains("midjourney", ignoreCase = true) ||
+                fileName.contains("flux", ignoreCase = true) ||
+                fileName.contains("synthetic", ignoreCase = true) ||
+                fileName.contains("generated", ignoreCase = true)) {
+                isAiDetected = true
+            }
+
+            val result = apiClient.scanDeepfake(
+                fileName = fileName,
+                isLikelyAi = isAiDetected,
+                exifSoftware = softwareTag
+            )
+            _currentScanResult.value = result
+            _scanHistory.value = listOf(result) + _scanHistory.value
+            _isScanning.value = false
+        }
+    }
+
+    fun setCustomScanResult(result: SecurityResult) {
+        _currentScanResult.value = result
+        _scanHistory.value = listOf(result) + _scanHistory.value
     }
 
     fun askScanAssistant(scanId: String, question: String) {

@@ -29,6 +29,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -87,6 +91,9 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
             composable("message_result") { ResultScreen(nav, "Message Scam Result", viewModel) }
             composable("url_protection") { ResultScreen(nav, "URL Protection", viewModel) }
             composable("qr_payment") { ResultScreen(nav, "QR & Payment Safety", viewModel) }
+            composable("call_result") { ResultScreen(nav, "Scam Call & Caller ID Risk", viewModel) }
+            composable("deepfake_scan") { MediaDeepfakeScanScreen(nav, viewModel) }
+            composable("media_result") { ResultScreen(nav, "Deepfake & AI Media Forensics", viewModel) }
             composable("ai") { AiAssistantScreen(nav, viewModel) }
             composable("risk") { RiskScreen(nav, viewModel) }
             composable("family") { FamilyProtectionScreen(nav, viewModel) }
@@ -99,7 +106,11 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
             }
             composable("feature/{route}") { backStack ->
                 val route = backStack.arguments?.getString("route") ?: ""
-                if (route.startsWith("19-settings-") || route.startsWith("settings-detail-")) {
+                if (route == "ai_media_scanner") {
+                    MediaDeepfakeScanScreen(nav, viewModel)
+                } else if (route == "scam_call_identifier") {
+                    ResultScreen(nav, "Scam Call & Caller ID Risk", viewModel)
+                } else if (route.startsWith("19-settings-") || route.startsWith("settings-detail-")) {
                     val spec = ScreenRegistry.find(route)
                     SettingsDetailScreen(nav, spec, viewModel)
                 } else {
@@ -564,6 +575,19 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
     var inputQuery by remember { mutableStateOf("") }
     var appFilterQuery by remember { mutableStateOf("") }
     val installedApps = remember { vm.getInstalledApps() }
+    val context = LocalContext.current
+    var showAiOverlay by remember { mutableStateOf(false) }
+    val currentScan by vm.currentScanResult.collectAsState()
+
+    val paymentPhotoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            vm.scanPaymentPhoto(uri, context)
+            activeDialog = null
+            nav.navigate("qr_payment")
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -733,7 +757,7 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                         subtitle = "Deepfake",
                         icon = Icons.Default.Star,
                         iconColor = Cyan,
-                        onClick = { nav.navigate("feature/ai_media_scanner") },
+                        onClick = { nav.navigate("deepfake_scan") },
                         modifier = Modifier.weight(1f)
                     )
                     DetectionToolCard(
@@ -867,6 +891,21 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                     unfocusedTextColor = Color.White
                                 )
                             )
+
+                            if (dialogType == "PAYMENT") {
+                                Spacer(Modifier.height(10.dp))
+                                OutlinedButton(
+                                    onClick = { paymentPhotoPicker.launch("image/*") },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                    border = BorderStroke(1.dp, Cyan.copy(alpha = 0.6f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Cyan, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Upload Screenshot / QR Photo", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 },
@@ -897,8 +936,9 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                             nav.navigate("qr_payment")
                                         }
                                         "CALL" -> {
+                                            vm.scanCall(inputQuery)
                                             activeDialog = null
-                                            nav.navigate("feature/scam_call_identifier")
+                                            nav.navigate("call_result")
                                         }
                                         "INVESTMENT" -> {
                                             vm.scanMessage(inputQuery)
@@ -923,6 +963,22 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                 }
             )
         }
+
+        if (currentScan != null) {
+            ScanAiSideFab(
+                onClick = { showAiOverlay = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 16.dp)
+            )
+        }
+
+        ScanAiAssistantOverlay(
+            scanResult = currentScan,
+            isOpen = showAiOverlay,
+            onClose = { showAiOverlay = false },
+            vm = vm
+        )
     }
 }
 
@@ -1008,8 +1064,10 @@ private fun MessageAnalysisScreen(
     var inlineInput by remember { mutableStateOf("") }
     var isInputExpanded by remember { mutableStateOf(result == null) }
     val isScanning by vm.isScanning.collectAsState()
+    var showAiOverlay by remember { mutableStateOf(false) }
 
-    LazyColumn(
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
         Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
@@ -1287,6 +1345,21 @@ private fun MessageAnalysisScreen(
             }
         }
     }
+
+    ScanAiSideFab(
+            onClick = { showAiOverlay = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 20.dp)
+        )
+
+        ScanAiAssistantOverlay(
+            scanResult = result,
+            isOpen = showAiOverlay,
+            onClose = { showAiOverlay = false },
+            vm = vm
+        )
+    }
 }
 
 @Composable
@@ -1298,8 +1371,10 @@ private fun UrlProtectionScreen(
     var inlineUrlInput by remember { mutableStateOf("") }
     var isInputExpanded by remember { mutableStateOf(result == null) }
     val isScanning by vm.isScanning.collectAsState()
+    var showAiOverlay by remember { mutableStateOf(false) }
 
-    LazyColumn(
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
         Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
@@ -1536,6 +1611,21 @@ private fun UrlProtectionScreen(
             }
         }
     }
+
+    ScanAiSideFab(
+            onClick = { showAiOverlay = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 20.dp)
+        )
+
+        ScanAiAssistantOverlay(
+            scanResult = result,
+            isOpen = showAiOverlay,
+            onClose = { showAiOverlay = false },
+            vm = vm
+        )
+    }
 }
 
 @Composable
@@ -1544,79 +1634,104 @@ private fun QrPaymentScreen(
     result: SecurityResult?,
     vm: MainSecurityViewModel
 ) {
+    val context = LocalContext.current
+    var showAiOverlay by remember { mutableStateOf(false) }
     var inlineQrInput by remember { mutableStateOf("") }
     var isInputExpanded by remember { mutableStateOf(result == null) }
     val isScanning by vm.isScanning.collectAsState()
 
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        item {
-            FigmaSubHeader("QR & payment", "Review before you pay", nav)
-            Spacer(Modifier.height(4.dp))
+    val paymentPhotoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            vm.scanPaymentPhoto(uri, context)
+            isInputExpanded = false
         }
+    }
 
-        // Inline input section when no scan or user requests re-scan
-        if (isInputExpanded || result == null) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
             item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Cyan.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Analyze QR / UPI Payment", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text("Paste decoded QR payload, UPI link (upi://pay?pa=...), or VPA to verify recipient:", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
-                            value = inlineQrInput,
-                            onValueChange = { inlineQrInput = it },
-                            placeholder = { Text("e.g. upi://pay?pa=store@upi&pn=Store&am=500", color = Muted, fontSize = 12.sp) },
-                            minLines = 2,
-                            maxLines = 4,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Cyan,
-                                unfocusedBorderColor = Line,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                FigmaSubHeader("QR & payment", "Review before you pay", nav)
+                Spacer(Modifier.height(4.dp))
+            }
+
+            // Inline input section when no scan or user requests re-scan
+            if (isInputExpanded || result == null) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Cyan.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Analyze QR / UPI Payment", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("Paste decoded QR payload, UPI link (upi://pay?pa=...), or VPA to verify recipient:", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                            Spacer(Modifier.height(10.dp))
+                            OutlinedTextField(
+                                value = inlineQrInput,
+                                onValueChange = { inlineQrInput = it },
+                                placeholder = { Text("e.g. upi://pay?pa=store@upi&pn=Store&am=500", color = Muted, fontSize = 12.sp) },
+                                minLines = 2,
+                                maxLines = 4,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Cyan,
+                                    unfocusedBorderColor = Line,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
                             )
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = {
-                                    if (inlineQrInput.isNotBlank()) {
-                                        vm.scanQr(inlineQrInput)
-                                        isInputExpanded = false
-                                    }
-                                },
-                                enabled = inlineQrInput.isNotBlank() && !isScanning,
-                                colors = ButtonDefaults.buttonColors(containerColor = Cyan, disabledContainerColor = Line),
-                                shape = RoundedCornerShape(10.dp)
+                            Spacer(Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (isScanning) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Analyzing...", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                } else {
-                                    Text("Verify QR / Payment", color = if (inlineQrInput.isNotBlank()) Color.Black else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = {
+                                        if (inlineQrInput.isNotBlank()) {
+                                            vm.scanQr(inlineQrInput)
+                                            isInputExpanded = false
+                                        }
+                                    },
+                                    enabled = inlineQrInput.isNotBlank() && !isScanning,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Cyan, disabledContainerColor = Line),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    if (isScanning) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Analyzing...", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    } else {
+                                        Text("Verify QR", color = if (inlineQrInput.isNotBlank()) Color.Black else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
-                            }
-                            if (result != null) {
-                                TextButton(onClick = { isInputExpanded = false }) {
-                                    Text("Close", color = Muted, fontSize = 12.sp)
+                                OutlinedButton(
+                                    onClick = { paymentPhotoPicker.launch("image/*") },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                    border = BorderStroke(1.dp, Cyan.copy(alpha = 0.6f)),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Cyan, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Upload Photo / QR", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                if (result != null) {
+                                    TextButton(onClick = { isInputExpanded = false }) {
+                                        Text("Close", color = Muted, fontSize = 12.sp)
+                                    }
                                 }
                             }
                         }
                     }
+                    Spacer(Modifier.height(14.dp))
                 }
-                Spacer(Modifier.height(14.dp))
-            }
         }
 
         result?.let { res ->
@@ -1775,6 +1890,21 @@ private fun QrPaymentScreen(
             }
         }
     }
+
+    ScanAiSideFab(
+            onClick = { showAiOverlay = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 20.dp)
+        )
+
+        ScanAiAssistantOverlay(
+            scanResult = result,
+            isOpen = showAiOverlay,
+            onClose = { showAiOverlay = false },
+            vm = vm
+        )
+    }
 }
 
 @Composable
@@ -1799,8 +1929,10 @@ private fun ResultScreen(nav: NavHostController, title: String, vm: MainSecurity
     val scanChatThreads by vm.scanChatThreads.collectAsState()
     val isAssistantResponding by vm.isAssistantResponding.collectAsState()
     var userQuestionInput by remember { mutableStateOf("") }
+    var showAiOverlay by remember { mutableStateOf(false) }
 
-    LazyColumn(
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
         Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
@@ -2166,6 +2298,21 @@ private fun ResultScreen(nav: NavHostController, title: String, vm: MainSecurity
                 }
             }
         }
+    }
+
+    ScanAiSideFab(
+            onClick = { showAiOverlay = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 20.dp)
+        )
+
+        ScanAiAssistantOverlay(
+            scanResult = result,
+            isOpen = showAiOverlay,
+            onClose = { showAiOverlay = false },
+            vm = vm
+        )
     }
 }
 

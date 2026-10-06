@@ -42,29 +42,26 @@ private val Line = Color(0xFF252D39)
 @Composable
 fun FullAppsManagerScreen(nav: NavHostController, vm: MainSecurityViewModel) {
     val apps by vm.inspectedApps.collectAsState()
-    var selectedFilter by remember { mutableStateOf("ALL") } // "ALL", "RISKY", "SAFE", "SYSTEM"
+    var selectedFilter by remember { mutableStateOf("ALL") } // "ALL", "DANGER", "PLAYSTORE", "SYSTEM", "SAFE"
     var searchQuery by remember { mutableStateOf("") }
     val context = LocalContext.current
 
-    LaunchedEffect(selectedFilter) {
-        if (selectedFilter == "SYSTEM") {
-            vm.refreshInspectedApps(includeSystem = true)
-        } else {
-            vm.refreshInspectedApps(includeSystem = false)
-        }
+    LaunchedEffect(Unit) {
+        vm.refreshInspectedApps(includeSystem = true)
     }
 
-    val userApps = remember(apps) { apps.filter { !it.isSystemApp } }
-    val riskyApps = remember(userApps) { userApps.filter { it.isRisky } }
-    val safeApps = remember(userApps) { userApps.filter { !it.isRisky } }
+    val dangerThirdPartyApps = remember(apps) { apps.filter { it.isRisky } }
+    val playStoreApps = remember(apps) { apps.filter { it.isPlayStore && !it.isSystemApp } }
     val systemApps = remember(apps) { apps.filter { it.isSystemApp } }
+    val safeApps = remember(apps) { apps.filter { !it.isRisky } }
 
     val displayedApps = remember(apps, selectedFilter, searchQuery) {
         val baseList = when (selectedFilter) {
-            "RISKY" -> riskyApps
-            "SAFE" -> safeApps
+            "DANGER" -> dangerThirdPartyApps
+            "PLAYSTORE" -> playStoreApps
             "SYSTEM" -> systemApps
-            else -> userApps
+            "SAFE" -> safeApps
+            else -> apps
         }
         if (searchQuery.isBlank()) {
             baseList
@@ -97,9 +94,9 @@ fun FullAppsManagerScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                 Spacer(Modifier.width(4.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Apps Manager", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("100% verified Android package inspection", fontSize = 11.sp, color = Muted, modifier = Modifier.padding(top = 1.dp))
+                    Text("Strict Security Classification: Safe vs Third-Party Danger", fontSize = 11.sp, color = Muted, modifier = Modifier.padding(top = 1.dp))
                 }
-                IconButton(onClick = { vm.refreshInspectedApps(selectedFilter == "SYSTEM") }) {
+                IconButton(onClick = { vm.refreshInspectedApps(includeSystem = true) }) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Cyan)
                 }
             }
@@ -115,8 +112,8 @@ fun FullAppsManagerScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Third-Party App Security Inventory", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
-                    Text("System OEM apps are strictly separated to prevent false positives.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
+                    Text("Application Security Classification", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                    Text("System & Google Play apps are verified safe. Third-party sideloaded APKs are flagged as Danger.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -129,14 +126,14 @@ fun FullAppsManagerScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                             modifier = Modifier.weight(1f)
                         )
                         MetricCounterBox(
-                            label = "Risky Apps",
-                            count = riskyApps.size,
-                            color = if (riskyApps.isEmpty()) SentinelRiskColors.SAFE_GREEN else SentinelRiskColors.DANGER_RED,
+                            label = "Danger Apps",
+                            count = dangerThirdPartyApps.size,
+                            color = if (dangerThirdPartyApps.isEmpty()) SentinelRiskColors.SAFE_GREEN else SentinelRiskColors.DANGER_RED,
                             modifier = Modifier.weight(1f)
                         )
                         MetricCounterBox(
                             label = "Total Scanned",
-                            count = userApps.size,
+                            count = apps.size,
                             color = Cyan,
                             modifier = Modifier.weight(1f)
                         )
@@ -173,16 +170,16 @@ fun FullAppsManagerScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterTabChip("All User Apps (${userApps.size})", selected = (selectedFilter == "ALL")) {
+                FilterTabChip("All Apps (${apps.size})", selected = (selectedFilter == "ALL")) {
                     selectedFilter = "ALL"
                 }
-                FilterTabChip("Risky (${riskyApps.size})", selected = (selectedFilter == "RISKY"), activeColor = SentinelRiskColors.DANGER_RED) {
-                    selectedFilter = "RISKY"
+                FilterTabChip("Danger (${dangerThirdPartyApps.size})", selected = (selectedFilter == "DANGER"), activeColor = SentinelRiskColors.DANGER_RED) {
+                    selectedFilter = "DANGER"
                 }
-                FilterTabChip("Safe (${safeApps.size})", selected = (selectedFilter == "SAFE"), activeColor = SentinelRiskColors.SAFE_GREEN) {
-                    selectedFilter = "SAFE"
+                FilterTabChip("Play Store (${playStoreApps.size})", selected = (selectedFilter == "PLAYSTORE"), activeColor = SentinelRiskColors.SAFE_GREEN) {
+                    selectedFilter = "PLAYSTORE"
                 }
-                FilterTabChip("System Apps (${if (systemApps.isNotEmpty()) systemApps.size else "OEM"})", selected = (selectedFilter == "SYSTEM"), activeColor = Muted) {
+                FilterTabChip("System Apps (${systemApps.size})", selected = (selectedFilter == "SYSTEM"), activeColor = SentinelRiskColors.SAFE_GREEN) {
                     selectedFilter = "SYSTEM"
                 }
             }
