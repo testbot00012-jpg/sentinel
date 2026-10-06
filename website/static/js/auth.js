@@ -74,10 +74,22 @@ class AuthController {
   }
 
   async init() {
-    await window.api.ensureGuestSession();
+    const isLoginPage = window.location.pathname.endsWith('login.html');
+    const isAuthed = window.api.isLoggedIn();
+
+    if (!isAuthed && !isLoginPage) {
+      window.location.replace('login.html');
+      return;
+    }
+
+    if (isAuthed && isLoginPage) {
+      window.location.replace('index.html');
+      return;
+    }
+
     this.updateUserUI();
 
-    // If on account.html, display appropriate tab
+    // If on account.html or login.html, display appropriate tab
     if (this.formLogin || this.viewProfile) {
       const user = window.api.getUser();
       if (user && !user.is_guest) {
@@ -106,7 +118,7 @@ class AuthController {
         this.userAvatar.textContent = '🛡️';
         this.syncPill.innerHTML = `
           <span class="sync-icon-spin">🔄</span>
-          <span>Guest Mode • Click to Sync</span>
+          <span>Not Authenticated • Sign In</span>
         `;
         this.syncPill.style.color = '#94a3b8';
       }
@@ -144,7 +156,13 @@ class AuthController {
       await window.api.login(email, pass);
       window.toast('Welcome back! Account and cross-device scan history synced.', 'success');
       this.updateUserUI();
-      this.showTab('profile');
+      if (window.location.pathname.endsWith('login.html')) {
+        setTimeout(() => {
+          window.location.replace('index.html');
+        }, 500);
+      } else {
+        this.showTab('profile');
+      }
     } catch (err) {
       window.toast(err.message || 'Login failed. Please verify credentials.', 'error');
     } finally {
@@ -171,7 +189,13 @@ class AuthController {
       await window.api.register(name, email, pass);
       window.toast('Account registered! Device session synchronized.', 'success');
       this.updateUserUI();
-      this.showTab('profile');
+      if (window.location.pathname.endsWith('login.html')) {
+        setTimeout(() => {
+          window.location.replace('index.html');
+        }, 500);
+      } else {
+        this.showTab('profile');
+      }
     } catch (err) {
       window.toast(err.message || 'Registration failed.', 'error');
     } finally {
@@ -181,10 +205,11 @@ class AuthController {
   }
 
   async handleLogout() {
-    await window.api.logout();
-    window.toast('Signed out. Reverted to guest session.', 'info');
-    this.updateUserUI();
-    this.showTab('login');
+    window.api.logout();
+    window.toast('Signed out successfully.', 'info');
+    setTimeout(() => {
+      window.location.replace('login.html');
+    }, 400);
   }
 
   populateProfileDetails(user) {

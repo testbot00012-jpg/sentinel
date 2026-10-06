@@ -11,6 +11,22 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
 
+  <!-- Auth Gate: Enforce Login First -->
+  <script>
+    (function() {
+      const token = localStorage.getItem('sentinel_auth_token');
+      const user = localStorage.getItem('sentinel_user_profile');
+      let isAuthed = false;
+      try {
+        const u = JSON.parse(user);
+        if (token && u && !u.is_guest) isAuthed = true;
+      } catch(e) {}
+      if (!isAuthed) {
+        window.location.replace('login.html');
+      }
+    })();
+  </script>
+
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
@@ -86,7 +102,12 @@
       <!-- Account Profile Button -->
       <button id="user-profile-btn" class="user-profile-btn">
         <span id="user-avatar-initials" class="user-avatar-circle">🛡️</span>
-        <span id="user-display-name">Sign In</span>
+        <span id="user-display-name">Account</span>
+      </button>
+
+      <!-- Sign Out Button -->
+      <button id="nav-logout-btn" class="btn btn-secondary btn-sm" onclick="window.authController.handleLogout()" style="padding:5px 12px;font-size:0.75rem;color:#f87171;border-color:rgba(239,68,68,0.25);" title="Sign Out of Sentinel">
+        🚪 Sign Out
       </button>
     </div>
   </header>

@@ -73,8 +73,10 @@ class SentinelApiClient {
       });
 
       if (resp.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
-        // Fallback to guest token if session invalidated
-        await this.ensureGuestSession();
+        this.logout();
+        if (!window.location.pathname.endsWith('login.html')) {
+          window.location.replace('login.html');
+        }
       }
 
       if (!resp.ok) {
@@ -158,10 +160,15 @@ class SentinelApiClient {
     return res;
   }
 
+  isLoggedIn() {
+    const token = this.getToken();
+    const user = this.getUser();
+    return !!(token && user && !user.is_guest);
+  }
+
   logout() {
     this.setToken(null);
     this.setUser(null);
-    return this.ensureGuestSession();
   }
 
   async getProfile() {
