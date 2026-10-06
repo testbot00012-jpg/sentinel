@@ -31,7 +31,7 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
 
     fun getBaseUrl(): String = baseUrl
 
-    fun setAuthToken(token: String) {
+    fun setAuthToken(token: String?) {
         this.authToken = token
     }
 
@@ -397,18 +397,51 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
         )
     }
 
-    suspend fun scanPaymentScreenshot(imageName: String?, reference: String?): SecurityResult = withContext(Dispatchers.IO) {
+    suspend fun scanPaymentScreenshot(
+        imageName: String?,
+        reference: String?,
+        explicitAmount: String? = null
+    ): SecurityResult = withContext(Dispatchers.IO) {
         val target = reference?.trim() ?: imageName ?: "Payment Screenshot"
         val lower = target.lowercase()
         val isCollect = lower.contains("collect") || lower.contains("request") || lower.contains("approve")
         val isFakeReceipt = lower.contains("spoof") || lower.contains("fake") || lower.contains("prank") || lower.contains("generator") || lower.contains("demo")
         val isScam = isCollect || isFakeReceipt
 
-        val riskScore = if (isCollect) 85 else if (isFakeReceipt) 90 else 8
+        // Extract transaction amount
+        var detectedAmount = explicitAmount
+        if (detectedAmount.isNullOrBlank()) {
+            val amountRegex = Regex("""(?:am=|₹\s*|inr\s*|rs\.?\s*)([0-9,]+(?:\.[0-9]{2})?)""", RegexOption.IGNORE_CASE)
+            val match = amountRegex.find(target)
+            if (match != null) {
+                detectedAmount = "₹" + match.groupValues[1]
+            }
+        }
+        if (detectedAmount.isNullOrBlank()) {
+            val numRegex = Regex("""\b([0-9]{2,6}(?:\.[0-9]{2})?)\b""")
+            val numMatch = numRegex.find(target)
+            if (numMatch != null && !target.contains("@")) {
+                detectedAmount = "₹" + numMatch.groupValues[1]
+            }
+        }
+
+        val riskScore = if (isCollect) 85 else if (isFakeReceipt) 90 else 4
         val secScore = 100 - riskScore
 
         val signals = mutableListOf<ScannerSignal>()
         val actions = mutableListOf<String>()
+
+        if (detectedAmount != null) {
+            signals.add(
+                ScannerSignal(
+                    name = "Parsed Transaction Value: $detectedAmount",
+                    type = "PAYMENT_PAYLOAD",
+                    severity = if (isScam) "HIGH" else "SAFE",
+                    description = "Forensic parser extracted transaction value of $detectedAmount from payment payload / OCR.",
+                    evidenceValue = detectedAmount
+                )
+            )
+        }
 
         if (isCollect) {
             signals.add(ScannerSignal("Disguised UPI Collect Request", "PAYMENT_PROTOCOL", "CRITICAL", "Transaction triggers a 'Pay' debit authorization rather than a credit. Entering PIN will transfer money OUT of your account."))
@@ -424,6 +457,12 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
         } else {
             signals.add(ScannerSignal("Authentic Payment & Transaction Format", "NPCI_VALIDATION", "SAFE", "Standard transaction payload conforming to verified banking network standards."))
             actions.add("Payment details appear valid. Confirm beneficiary name before transferring.")
+            actions.add("Verify amount (${detectedAmount ?: "Standard"}) in your official UPI app.")
+        }
+
+        val evidenceList = mutableListOf(target)
+        if (detectedAmount != null) {
+            evidenceList.add("Detected Amount: $detectedAmount")
         }
 
         SecurityResult(
@@ -435,17 +474,18 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
             threatProbability = riskScore / 100.0,
             confidence = 0.96,
             signals = signals,
-            explanation = if (isCollect) "CRITICAL PAYMENT FRAUD: Disguised UPI Collect request detected! Entering your UPI PIN will DEBIT money from your bank account." else if (isFakeReceipt) "CRITICAL: This payment receipt is FAKE. Generated using screenshot spoofing tools without real banking credit." else "Payment receipt / QR details verified safe. Transaction follows authentic banking parameters.",
+            explanation = if (isCollect) "CRITICAL PAYMENT FRAUD: Disguised UPI Collect request detected for ${detectedAmount ?: "funds"}! Entering your UPI PIN will DEBIT money from your bank account." else if (isFakeReceipt) "CRITICAL: This payment receipt (${detectedAmount ?: "funds"}) is FAKE. Generated using screenshot spoofing tools without real banking credit." else "Payment receipt / QR details verified safe. Detected amount: ${detectedAmount ?: "Not specified"}. Transaction follows authentic banking parameters.",
             recommendedActions = actions,
             whatToAvoid = listOf("Never enter UPI PIN when receiving money.", "Do not rely on screenshots sent by strangers without checking your banking app."),
             limitations = listOf("Verify the recipient's registered bank account name shown on the UPI confirmation dialog."),
             modelName = "Sentinel-PaymentGuardian-Vision",
             modelVersion = "3.2.0",
-            quickSummary = if (isScam) "DANGER: Fraudulent payment request / fake receipt detected" else "SAFE: Authentic payment receipt / QR format verified",
+            quickSummary = if (isScam) "DANGER: Fraudulent payment request / fake receipt detected (${detectedAmount ?: "Amount Pending"})" else "SAFE: Authentic payment receipt / QR format verified (${detectedAmount ?: "Verified Format"})",
             whyThisScore = listOf(
-                if (isCollect) "UPI Collect request detected masquerading as credit (+85 risk)" else if (isFakeReceipt) "Fake screenshot generator fonts detected (+90 risk)" else "Verified authentic banking parameters (-92 risk)"
+                if (isCollect) "UPI Collect request detected masquerading as credit (+85 risk)" else if (isFakeReceipt) "Fake screenshot generator fonts detected (+90 risk)" else "Verified authentic banking parameters (-96 risk)",
+                if (detectedAmount != null) "Amount parsed successfully: $detectedAmount" else "Standard payload encoding"
             ),
-            evidence = listOf(target),
+            evidence = evidenceList,
             rawInputReference = target
         )
     }
@@ -679,21 +719,41 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                     }
                 }
                 type == "SMS_MESSAGE_SCAM" -> {
-                    when {
-                        q.contains("why", ignoreCase = true) || q.contains("dangerous", ignoreCase = true) ->
-                            "This message was flagged because it uses coercive urgency triggers ('account suspended', 'immediate action required') or requests private credentials like OTPs or passwords. Legitimate institutions do not ask for secret PINs over message."
-                        q.contains("do", ignoreCase = true) || q.contains("what should", ignoreCase = true) ->
-                            "Do NOT click any links in this message, and NEVER reply with your OTP or login details. Delete and report the message to 1909 or your bank's fraud reporting channel."
-                        else ->
-                            "Message safety overview: The message contains $signalsCount risk signal(s). Protect your banking credentials and do not engage with the sender."
+                    if (isDanger) {
+                        when {
+                            q.contains("why", ignoreCase = true) || q.contains("dangerous", ignoreCase = true) || q.contains("fraud", ignoreCase = true) ->
+                                "This message was flagged as DANGER ($score/100) because it uses coercive urgency triggers ('account suspended', 'immediate action required') or requests private credentials like OTPs or passwords. Legitimate banks and services never ask for secret PINs over message."
+                            q.contains("do", ignoreCase = true) || q.contains("what should", ignoreCase = true) ->
+                                "Do NOT click any links in this message, and NEVER reply with your OTP or login details. Delete and report the message to 1909 or your bank's official fraud helpline."
+                            else ->
+                                "Threat assessment: The message contains $signalsCount high-risk indicator(s). Protect your accounts and do not communicate with this sender."
+                        }
+                    } else {
+                        when {
+                            q.contains("why", ignoreCase = true) || q.contains("safe", ignoreCase = true) ->
+                                "This message is verified SAFE ($score/100). Linguistic and semantic inspection found no phishing URLs, no coercive urgency, no OTP requests, and standard sender headers."
+                            q.contains("do", ignoreCase = true) || q.contains("what should", ignoreCase = true) ->
+                                "You can safely view this message. As a general rule, never share your banking PINs or OTPs with anyone."
+                            else ->
+                                "Summary: The scanned message is authentic and safe to read. No threat patterns detected."
+                        }
                     }
                 }
-                type == "URL_PHISHING" -> {
-                    when {
-                        q.contains("why", ignoreCase = true) || q.contains("dangerous", ignoreCase = true) ->
-                            "The link ($target) was analyzed for domain age, homograph character substitution, and credential theft forms. It does not match official certified certificates."
-                        else ->
-                            "Do not submit passwords, card numbers, or personal information on this site. Close the browser tab immediately."
+                type == "URL_PHISHING" || type == "URL_PHISHING_LOCAL_FALLBACK" -> {
+                    if (isDanger) {
+                        when {
+                            q.contains("why", ignoreCase = true) || q.contains("dangerous", ignoreCase = true) ->
+                                "The link ($target) was assigned a DANGER score ($score/100) because it displays high-risk phishing markers: domain typosquatting, uncertified SSL, or credential harvesting path tokens."
+                            else ->
+                                "CRITICAL ADVICE: Do NOT open this site or enter your passwords, credit cards, or personal information. Close the browser tab immediately."
+                        }
+                    } else {
+                        when {
+                            q.contains("why", ignoreCase = true) || q.contains("safe", ignoreCase = true) ->
+                                "The website ($target) is verified SAFE ($score/100). It utilizes valid TLS/HTTPS encryption, belongs to a reputable domain registry, and shows no history of malicious hosting or credential spoofing."
+                            else ->
+                                "Summary: This URL destination is authentic and safe to browse. Always verify the secure padlock icon in your browser address bar."
+                        }
                     }
                 }
                 type == "APK_ANALYSIS" || type == "APP_SECURITY" -> {

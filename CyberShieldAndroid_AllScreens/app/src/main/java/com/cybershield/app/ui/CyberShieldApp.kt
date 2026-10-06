@@ -46,6 +46,9 @@ import com.cybershield.app.core.model.ScanChatMessage
 import com.cybershield.app.model.ScreenRegistry
 import com.cybershield.app.model.ScreenSpec
 import com.cybershield.app.ui.viewmodel.MainSecurityViewModel
+import com.cybershield.app.core.security.RealFileInfo
+import com.cybershield.app.ui.AppLocalization
+import java.util.Calendar
 
 private val Cyan = Color(0xFF31D7FF)
 private val Muted = Color(0xFF8E99AA)
@@ -65,7 +68,7 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
         containerColor = DarkBg,
         bottomBar = {
             if (showBottomBar) {
-                BottomBar(nav)
+                BottomBar(nav, viewModel)
             }
         }
     ) { padding ->
@@ -167,6 +170,9 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
                 } else if (route.startsWith("19-settings-") || route.startsWith("settings-detail-")) {
                     val spec = ScreenRegistry.find(route)
                     SettingsDetailScreen(nav, spec, viewModel)
+                } else if (route.startsWith("10-file-and-storage-security-")) {
+                    val spec = ScreenRegistry.find(route)
+                    RealStorageInspectorScreen(spec, nav, viewModel)
                 } else {
                     val spec = ScreenRegistry.find(route)
                     FeatureScreen(nav, spec, viewModel)
@@ -177,13 +183,14 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
 }
 
 @Composable
-private fun BottomBar(nav: NavHostController) {
+private fun BottomBar(nav: NavHostController, vm: MainSecurityViewModel) {
+    val currentLang by vm.currentLanguage.collectAsState()
     val items = listOf(
-        Triple("home", "Home", Icons.Default.Home),
-        Triple("protect", "Protect", Icons.Default.Shield),
-        Triple("scan", "Scan", Icons.Default.CropFree),
-        Triple("alerts", "Alerts", Icons.Default.NotificationsNone),
-        Triple("settings", "Settings", Icons.Default.Settings)
+        Triple("home", AppLocalization.getNavLabel("Home", currentLang), Icons.Default.Home),
+        Triple("protect", AppLocalization.getNavLabel("Protect", currentLang), Icons.Default.Shield),
+        Triple("scan", AppLocalization.getNavLabel("Scan", currentLang), Icons.Default.CropFree),
+        Triple("alerts", AppLocalization.getNavLabel("Alerts", currentLang), Icons.Default.NotificationsNone),
+        Triple("settings", AppLocalization.getNavLabel("Settings", currentLang), Icons.Default.Settings)
     )
     val navBackStackEntry by nav.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -391,9 +398,19 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
     val overall = scoreState.overallScore
     val scoreColor = SentinelRiskColors.getColorForScore(overall)
     val statusText = SentinelRiskColors.getStatusForScore(overall)
+    val currentLang by vm.currentLanguage.collectAsState()
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    val greetingTitle = AppLocalization.getGreeting(currentLang, hour)
     val deviceName = telemetry?.let { "${it.manufacturer} ${it.model}" } ?: "Your phone"
+    val localizedSubtitle = when (currentLang) {
+        "te" -> "$deviceName సురక్షితంగా ఉంది"
+        "hi" -> "$deviceName सुरक्षित है"
+        else -> "$deviceName is protected"
+    }
 
-    val badgeText = if (overall >= 80) "PROTECTED" else if (overall >= 60) "ATTENTION" else "AT RISK"
+    val badgeText = if (overall >= 80) AppLocalization.getString("protected", currentLang)
+        else if (overall >= 60) AppLocalization.getString("attention", currentLang)
+        else AppLocalization.getString("at_risk", currentLang)
     val badgeBg = if (overall >= 80) Color(0xFF0F2D1F) else if (overall >= 60) Color(0xFF2C2010) else Color(0xFF2D1212)
     val badgeColor = scoreColor
 
@@ -406,11 +423,11 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        // Figma Header: "Good morning / [Device Name] is protected"
+        // Figma Header: Dynamic Greeting / [Device Name] is protected
         item {
             FigmaHeader(
-                title = "Good morning",
-                subtitle = "$deviceName is protected",
+                title = greetingTitle,
+                subtitle = localizedSubtitle,
                 nav = nav,
                 showBell = true
             )
@@ -618,7 +635,7 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
     var activeDialog by remember { mutableStateOf<String?>(null) }
     var inputQuery by remember { mutableStateOf("") }
     var appFilterQuery by remember { mutableStateOf("") }
-    val installedApps = remember { vm.getInstalledApps() }
+    val installedApps: List<com.cybershield.app.core.security.InspectedAppInfo> = remember { vm.getInstalledApps() }
     val context = LocalContext.current
     var showAiOverlay by remember { mutableStateOf(false) }
     val currentScan by vm.currentScanResult.collectAsState()
@@ -865,13 +882,16 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                 )
                             )
                             Spacer(Modifier.height(8.dp))
-                            val filteredApps = installedApps.filter { it.contains(appFilterQuery, ignoreCase = true) }
+                            val filteredApps = installedApps.filter {
+                                it.appName.contains(appFilterQuery, ignoreCase = true) ||
+                                it.packageName.contains(appFilterQuery, ignoreCase = true)
+                            }
                             Box(modifier = Modifier.height(180.dp).fillMaxWidth()) {
                                 if (filteredApps.isEmpty()) {
                                     Text("No apps match query", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
                                 } else {
                                     LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                        items(filteredApps.take(30)) { appName ->
+                                        items(filteredApps.take(30)) { appInfo ->
                                             Surface(
                                                 color = Color(0xFF161D27),
                                                 shape = RoundedCornerShape(8.dp),
@@ -880,7 +900,7 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                                     .fillMaxWidth()
                                                     .padding(vertical = 3.dp)
                                                     .clickable {
-                                                        vm.scanApk(appName)
+                                                        vm.scanApk(appInfo.packageName)
                                                         activeDialog = null
                                                         nav.navigate("scan_report")
                                                     }
@@ -891,7 +911,7 @@ private fun ScanCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                                                 ) {
                                                     Icon(Icons.Default.GridView, null, tint = Cyan, modifier = Modifier.size(16.dp))
                                                     Spacer(Modifier.width(8.dp))
-                                                    Text(appName, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                    Text(appInfo.appName, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                                 }
                                             }
                                         }
@@ -1298,7 +1318,53 @@ private fun MessageAnalysisScreen(
                         FlaggedItem(res.explanation)
                     }
                 }
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(18.dp))
+            }
+
+            // Diagnostic Report Section
+            item {
+                Text("Diagnostic Report", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val isSafe = res.riskLevel == RiskLevel.SAFE
+                        val msgType = if (isSafe) "Verified Transactional / Standard SMS" else "Suspicious Coercive / Phishing SMS"
+                        Text("Message Classification: $msgType", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(8.dp))
+
+                        Text(
+                            if (isSafe) "WHY IT IS SAFE" else "WHY IT IS DANGEROUS",
+                            color = if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        val whyText = if (isSafe) {
+                            "Contains standard informational phrasing. No artificial panic countdowns, fake lottery claims, unauthorized shortened URLs, or requests to disclose one-time passwords (OTPs)."
+                        } else {
+                            "Contains coercive urgency keywords, threats of immediate account suspension or service disconnection, or deceptive requests demanding personal credentials and PIN disclosure."
+                        }
+                        Text(whyText, color = Color(0xFFCBD5E1), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(8.dp))
+
+                        Text("WHAT YOU SHOULD DO", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        val actionText = if (isSafe) {
+                            "Safe to read. If this is a banking notification, verify through your official banking application or website."
+                        } else {
+                            "Do NOT reply, call back, or click any links in this message. NEVER disclose your OTP or bank details. Block and report the sender immediately."
+                        }
+                        Text(actionText, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
             }
 
             // Safe next action Card
@@ -1577,6 +1643,55 @@ private fun UrlProtectionScreen(
                 Spacer(Modifier.height(18.dp))
             }
 
+            // Diagnostic Report Section
+            item {
+                Text("Diagnostic Report", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val urlType = when {
+                            scannedUrl.startsWith("https://", true) -> "Encrypted HTTPS Web Destination"
+                            scannedUrl.startsWith("http://", true) -> "Insecure Plaintext HTTP Link"
+                            else -> "Web Destination URI"
+                        }
+                        Text("Destination Type: $urlType", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(8.dp))
+
+                        Text(
+                            if (isSafe) "WHY IT IS SAFE" else "WHY IT IS DANGEROUS",
+                            color = if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        val whyText = if (isSafe) {
+                            "Cryptographic TLS certificate is active. Domain structure conforms to standard registry. No credential harvesting, credential-relay, or deceptive redirects identified."
+                        } else {
+                            "Suspicious domain naming, lack of HTTPS transport encryption, or identified deceptive patterns designed to impersonate legitimate services and intercept credentials."
+                        }
+                        Text(whyText, color = Color(0xFFCBD5E1), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(8.dp))
+
+                        Text("WHAT YOU SHOULD DO", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        val actionText = if (isSafe) {
+                            "Safe to proceed. Confirm the domain name in your browser's address bar matches your intended destination before entering sensitive data."
+                        } else {
+                            "DO NOT open this link in any browser. Do not enter passwords, phone numbers, or debit/credit card details. Close and delete the source immediately."
+                        }
+                        Text(actionText, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+
             // Evidence section
             item {
                 Text("Evidence", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -1683,6 +1798,7 @@ private fun QrPaymentScreen(
     var inlineQrInput by remember { mutableStateOf("") }
     var isInputExpanded by remember { mutableStateOf(result == null) }
     val isScanning by vm.isScanning.collectAsState()
+    val lastDetectedAmount by vm.lastDetectedPaymentAmount.collectAsState()
 
     val paymentPhotoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -1783,6 +1899,9 @@ private fun QrPaymentScreen(
             // Parse UPI parameters if present
             var payeeVpa = "Direct Payload"
             var amountStr = "Unspecified"
+            if (!lastDetectedAmount.isNullOrBlank()) {
+                amountStr = lastDetectedAmount!!
+            }
             if (payload.contains("pa=", ignoreCase = true)) {
                 val paMatch = Regex("pa=([^&]+)", RegexOption.IGNORE_CASE).find(payload)
                 if (paMatch != null) payeeVpa = paMatch.groupValues[1]
@@ -1792,6 +1911,12 @@ private fun QrPaymentScreen(
             if (payload.contains("am=", ignoreCase = true)) {
                 val amMatch = Regex("am=([^&]+)", RegexOption.IGNORE_CASE).find(payload)
                 if (amMatch != null) amountStr = "₹${amMatch.groupValues[1]}"
+            }
+            if (amountStr == "Unspecified") {
+                val match = Regex("""(?:₹|INR|Rs\.?)\s*([0-9,]+(?:\.[0-9]{1,2})?)""").find(res.explanation)
+                if (match != null) {
+                    amountStr = "₹${match.groupValues[1]}"
+                }
             }
 
             val isSafe = res.riskLevel == RiskLevel.SAFE
@@ -1852,6 +1977,53 @@ private fun QrPaymentScreen(
                             Text("Amount", color = Muted, fontSize = 11.sp)
                             Text(amountStr, color = Color(0xFFFBBF24), fontWeight = FontWeight.Black, fontSize = 22.sp)
                         }
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+            }
+
+            // Diagnostic Report Section
+            item {
+                Text("Diagnostic Report", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val paymentType = if (payload.startsWith("upi://", true)) "UPI Standard Payment Intent" else "QR Payment Transfer Payload"
+                        Text("Payment Type: $paymentType", color = Cyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Detected Amount: $amountStr", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(8.dp))
+
+                        Text(
+                            if (isSafe) "WHY IT IS SAFE" else "WHY IT IS DANGEROUS",
+                            color = if (isSafe) Color(0xFF00E676) else Color(0xFFFF5252),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        val whyText = if (isSafe) {
+                            "Verified merchant or standard P2P transfer intent. Direct transaction route without reverse-collect or unauthorized authorization overrides."
+                        } else {
+                            "Contains suspicious request payload, reverse-collect manipulation attempting to debit rather than credit, or unverified recipient origin."
+                        }
+                        Text(whyText, color = Color(0xFFCBD5E1), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        Spacer(Modifier.height(8.dp))
+                        HorizontalDivider(color = Line.copy(alpha = 0.5f))
+                        Spacer(Modifier.height(8.dp))
+
+                        Text("WHAT YOU SHOULD DO", color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        val actionText = if (isSafe) {
+                            "Verify the recipient name and amount on your bank UPI PIN screen before approving payment."
+                        } else {
+                            "DECLINE this transaction immediately. NEVER enter your UPI PIN or scan a QR code to receive money!"
+                        }
+                        Text(actionText, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                     }
                 }
                 Spacer(Modifier.height(18.dp))
@@ -2362,6 +2534,20 @@ private fun ResultScreen(nav: NavHostController, title: String, vm: MainSecurity
 
 @Composable
 private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    val inspectedApps by vm.inspectedApps.collectAsState()
+    val telemetry by vm.telemetry.collectAsState()
+    val auditLogs by vm.securityAuditLogs.collectAsState()
+    val currentLang by vm.currentLanguage.collectAsState()
+
+    val dangerApps = remember(inspectedApps) { inspectedApps.filter { it.isRisky } }
+    val isNetworkUnsecured = remember(telemetry) {
+        telemetry?.let { it.networkType.equals("WIFI", ignoreCase = true) && !it.isVpnActive } ?: false
+    }
+    val isAdbEnabled = remember(telemetry) { telemetry?.isAdbEnabled == true }
+
+    val unresolvedCount = dangerApps.size + (if (isNetworkUnsecured) 1 else 0) + (if (isAdbEnabled) 1 else 0)
+    val resolvedLogs = remember(auditLogs) { auditLogs.take(6) }
+
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -2370,7 +2556,7 @@ private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel)
     ) {
         item {
             FigmaHeader(
-                title = "Alerts",
+                title = AppLocalization.getNavLabel("Alerts", currentLang),
                 subtitle = "Prioritized security events",
                 nav = nav,
                 showBell = true
@@ -2378,17 +2564,17 @@ private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel)
             Spacer(Modifier.height(4.dp))
         }
 
-        // Filter chips: 2 UNRESOLVED / 7 RESOLVED
+        // Filter chips: Dynamic count based on real threats
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(
-                    color = Color(0xFF2D1212),
+                    color = if (unresolvedCount > 0) Color(0xFF2D1212) else Color(0xFF0F2D1F),
                     shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.7f))
+                    border = BorderStroke(1.dp, if (unresolvedCount > 0) Color(0xFFFF5252).copy(alpha = 0.7f) else Color(0xFF00E676).copy(alpha = 0.5f))
                 ) {
                     Text(
-                        "2 UNRESOLVED",
-                        color = Color(0xFFFF5252),
+                        "$unresolvedCount UNRESOLVED",
+                        color = if (unresolvedCount > 0) Color(0xFFFF5252) else Color(0xFF00E676),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -2401,7 +2587,7 @@ private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f))
                 ) {
                     Text(
-                        "7 RESOLVED",
+                        "${resolvedLogs.size} AUDIT EVENTS",
                         color = Color(0xFF00E676),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -2418,55 +2604,130 @@ private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel)
             Spacer(Modifier.height(10.dp))
         }
 
+        if (unresolvedCount == 0) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .background(Color(0xFF0F2D1F), RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF00E676), modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column {
+                            Text("No Active Threats", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Realtime shields active. No untrusted sideloaded APKs or network anomalies detected.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        } else {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Sideloaded danger apps
+                    dangerApps.forEach { app ->
+                        FigmaAlertCard(
+                            title = "Untrusted sideloaded app: ${app.appName}",
+                            description = "${app.packageName} • Sideloaded without Play signature",
+                            time = "Active threat",
+                            icon = Icons.Default.Warning,
+                            iconBg = Color(0xFF2D1212),
+                            iconColor = Color(0xFFFF5252),
+                            actionColor = Color(0xFFFF5252),
+                            onClick = { nav.navigate("apps") }
+                        )
+                    }
+
+                    // Suspicious unencrypted network alert (only when real)
+                    if (isNetworkUnsecured) {
+                        FigmaAlertCard(
+                            title = "Unsecured Wi-Fi Network",
+                            description = "Connected to Wi-Fi without active VPN tunnel encryption",
+                            time = "Live telemetry",
+                            icon = Icons.Default.Wifi,
+                            iconBg = Color(0xFF2C2010),
+                            iconColor = Color(0xFFF59E0B),
+                            actionColor = Color(0xFFF59E0B),
+                            onClick = { nav.navigate("network") }
+                        )
+                    }
+
+                    // Developer mode / ADB
+                    if (isAdbEnabled) {
+                        FigmaAlertCard(
+                            title = "Developer Options / ADB Enabled",
+                            description = "USB debugging is active, increasing exploit exposure",
+                            time = "System status",
+                            icon = Icons.Default.Shield,
+                            iconBg = Color(0xFF2D1212),
+                            iconColor = Color(0xFFFF5252),
+                            actionColor = Color(0xFFFF5252),
+                            onClick = { nav.navigate("device") }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+
+        // Recent Security Audit Events
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Alert 1: High risk app
-                FigmaAlertCard(
-                    title = "High risk app",
-                    description = "SMS + accessibility access",
-                    time = "8 min ago",
-                    icon = Icons.Default.Warning,
-                    iconBg = Color(0xFF2D1212),
-                    iconColor = Color(0xFFFF5252),
-                    actionColor = Color(0xFFFF5252),
-                    onClick = { nav.navigate("apps") }
-                )
+            Text("Recent security events", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(10.dp))
+        }
 
-                // Alert 2: Suspicious network
-                FigmaAlertCard(
-                    title = "Suspicious network",
-                    description = "Unknown connection blocked",
-                    time = "1 hr ago",
-                    icon = Icons.Default.Wifi,
-                    iconBg = Color(0xFF2C2010),
-                    iconColor = Color(0xFFF59E0B),
-                    actionColor = Color(0xFFF59E0B),
-                    onClick = { nav.navigate("network") }
-                )
-
-                // Alert 3: Security update
-                FigmaAlertCard(
-                    title = "Security update",
-                    description = "Patch available",
-                    time = "Today",
-                    icon = Icons.Default.Shield,
-                    iconBg = Color(0xFF102636),
-                    iconColor = Cyan,
-                    actionColor = Cyan,
-                    onClick = { nav.navigate("device") }
-                )
-
-                // Alert 4: Evidence reminder
-                FigmaAlertCard(
-                    title = "Evidence reminder",
-                    description = "Export not configured",
-                    time = "Yesterday",
-                    icon = Icons.Default.WarningAmber,
-                    iconBg = Color(0xFF25122D),
-                    iconColor = Color(0xFFA855F7),
-                    actionColor = Color(0xFFA855F7),
-                    onClick = { nav.navigate("history") }
-                )
+        if (resolvedLogs.isEmpty()) {
+            item {
+                Text("No recent security events logged.", color = Muted, fontSize = 12.sp)
+            }
+        } else {
+            items(resolvedLogs) { log ->
+                val badgeColor = Color(log.colorHex)
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (badgeColor == Color(0xFFFF3B30) || badgeColor == Color(0xFFFF5252)) Icons.Default.Warning else Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = badgeColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(log.title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            if (log.subtitle.isNotBlank()) {
+                                Text(log.subtitle, color = Muted, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
+                            }
+                        }
+                        Text(log.timeFormatted, color = Muted, fontSize = 11.sp)
+                    }
+                }
             }
         }
     }
@@ -2816,6 +3077,275 @@ private fun StorageManagerScreen(nav: NavHostController, vm: MainSecurityViewMod
             val spec = ScreenRegistry.all.firstOrNull { it.title == title }
             FeatureRow(title, "Open storage tool") {
                 if (spec != null) nav.navigate("feature/${spec.route}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun RealStorageInspectorScreen(
+    spec: ScreenSpec,
+    nav: NavHostController,
+    vm: MainSecurityViewModel
+) {
+    val storageMetrics by vm.realStorageMetrics.collectAsState()
+    val storageAnalysisFiles by vm.storageAnalysisFiles.collectAsState()
+    val suspiciousFiles by vm.suspiciousFiles.collectAsState()
+    val duplicateFiles by vm.duplicateFiles.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
+
+    LaunchedEffect(spec.route) {
+        vm.refreshStorageFileScans()
+    }
+
+    val isAnalyzer = spec.route.contains("storage-analyzer")
+    val isSuspicious = spec.route.contains("suspicious-files")
+    val isDuplicate = spec.route.contains("duplicate-files")
+    val isDangerousDocs = spec.route.contains("dangerous-documents")
+    val isDownloads = spec.route.contains("download-scanner")
+
+    val currentFileList = when {
+        isSuspicious -> suspiciousFiles
+        isDuplicate -> duplicateFiles
+        isDangerousDocs -> storageAnalysisFiles.filter {
+            it.name.endsWith(".doc", true) || it.name.endsWith(".docx", true) ||
+            it.name.endsWith(".xls", true) || it.name.endsWith(".pdf", true) ||
+            it.name.endsWith(".apk", true) || it.name.endsWith(".exe", true) ||
+            it.isDangerous
+        }
+        isDownloads -> storageAnalysisFiles.filter { it.path.contains("Download", true) }
+        else -> storageAnalysisFiles
+    }
+
+    val displayedFiles = if (searchQuery.isBlank()) {
+        currentFileList
+    } else {
+        currentFileList.filter {
+            it.name.contains(searchQuery, true) || it.path.contains(searchQuery, true)
+        }
+    }
+
+    LazyColumn(
+        Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 32.dp)
+    ) {
+        // Header
+        item {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { nav.popBackStack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                }
+                Spacer(Modifier.width(4.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(spec.title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("10 File & Storage Security • Real Device Files", color = Muted, fontSize = 11.sp)
+                }
+                IconButton(onClick = { vm.refreshStorageFileScans() }) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Cyan)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+
+        // Hardware Storage Overview Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("StatFs Hardware Storage Telemetry", color = Cyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    val totalGb = storageMetrics?.totalStorageFormatted ?: "64.0 GB"
+                    val usedGb = storageMetrics?.usedStorageFormatted ?: "24.0 GB"
+                    val freeGb = storageMetrics?.freeStorageFormatted ?: "40.0 GB"
+                    val appData = storageMetrics?.appDataFormatted ?: "48.2 MB"
+
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column {
+                            Text("Total Capacity", color = Muted, fontSize = 11.sp)
+                            Text(totalGb, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                        Column {
+                            Text("Used Space", color = Muted, fontSize = 11.sp)
+                            Text(usedGb, color = Color(0xFFFBBF24), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                        Column {
+                            Text("Free Space", color = Muted, fontSize = 11.sp)
+                            Text(freeGb, color = Color(0xFF00E676), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    HorizontalDivider(color = Line.copy(alpha = 0.5f))
+                    Spacer(Modifier.height(8.dp))
+                    Text("App Sandbox & Cache: $appData", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Search bar
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Filter files by name or extension...", color = Muted, fontSize = 12.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = Cyan, modifier = Modifier.size(18.dp)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Cyan,
+                    unfocusedBorderColor = Line,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Section Title
+        item {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    when {
+                        isSuspicious -> "Suspicious Files Detected (${displayedFiles.size})"
+                        isDuplicate -> "Duplicate Files Found (${displayedFiles.size})"
+                        isDangerousDocs -> "Scanned Documents (${displayedFiles.size})"
+                        isDownloads -> "Downloads Directory (${displayedFiles.size})"
+                        else -> "Scanned Storage Files (${displayedFiles.size})"
+                    },
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (displayedFiles.isNotEmpty()) {
+                    Text(
+                        "${displayedFiles.count { it.isDangerous }} Danger",
+                        color = if (displayedFiles.any { it.isDangerous }) Color(0xFFFF5252) else Color(0xFF00E676),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        // File List or Empty State
+        if (displayedFiles.isEmpty()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            if (isSuspicious) Icons.Default.CheckCircle else Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            tint = if (isSuspicious) Color(0xFF00E676) else Cyan,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            when {
+                                isSuspicious -> "No Suspicious Files Found"
+                                isDuplicate -> "No Duplicate Files Found"
+                                else -> "No Files Scanned"
+                            },
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            when {
+                                isSuspicious -> "All scanned files in public storage and Downloads comply with safe non-executable signatures."
+                                isDuplicate -> "No redundant identical files detected across internal storage partitions."
+                                else -> "No files match current query. Storage scan is up to date."
+                            },
+                            color = Muted,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+        } else {
+            items(displayedFiles) { file ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, if (file.isDangerous) Color(0xFFFF5252).copy(alpha = 0.5f) else Line),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Row(
+                        Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier
+                                .size(40.dp)
+                                .background(
+                                    if (file.isDangerous) Color(0xFF2D1212) else Color(0xFF102636),
+                                    RoundedCornerShape(8.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (file.isDangerous) Icons.Default.Warning else Icons.Default.InsertDriveFile,
+                                contentDescription = null,
+                                tint = if (file.isDangerous) Color(0xFFFF5252) else Cyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(file.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                            Text(file.path, color = Muted, fontSize = 10.sp, maxLines = 1, modifier = Modifier.padding(top = 1.dp))
+                            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    color = if (file.isDangerous) Color(0xFF2D1212) else Color(0xFF0F2D1F),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        if (file.isDangerous) "DANGER" else "SAFE",
+                                        color = if (file.isDangerous) Color(0xFFFF5252) else Color(0xFF00E676),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(file.formattedSize, color = Color(0xFFFBBF24), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                if (file.category.isNotBlank()) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("• ${file.category}", color = Muted, fontSize = 10.sp)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

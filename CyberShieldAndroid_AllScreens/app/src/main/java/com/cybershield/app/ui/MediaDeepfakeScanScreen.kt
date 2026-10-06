@@ -305,10 +305,10 @@ fun MediaDeepfakeScanScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                         ) {
                             OutlinedButton(
                                 onClick = {
+                                    selectedImageUri = null
                                     selectedFileName = "benchmark_ai_midjourney_portrait.png"
                                     selectedFileSize = "1.8 MB"
                                     isAiSampleSelected = true
-                                    // Generate dummy placeholder bitmap
                                     val conf = Bitmap.Config.ARGB_8888
                                     val bmp = Bitmap.createBitmap(300, 300, conf)
                                     val canvas = android.graphics.Canvas(bmp)
@@ -316,7 +316,7 @@ fun MediaDeepfakeScanScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                                     selectedBitmap = bmp
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, Line),
+                                border = BorderStroke(1.dp, SentinelRiskColors.DANGER_RED.copy(alpha = 0.5f)),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Test AI Sample (Fake)", fontSize = 11.sp, color = SentinelRiskColors.DANGER_RED, fontWeight = FontWeight.Bold)
@@ -324,6 +324,7 @@ fun MediaDeepfakeScanScreen(nav: NavHostController, vm: MainSecurityViewModel) {
 
                             OutlinedButton(
                                 onClick = {
+                                    selectedImageUri = null
                                     selectedFileName = "benchmark_camera_original_dslr.jpg"
                                     selectedFileSize = "3.2 MB"
                                     isAiSampleSelected = false
@@ -334,7 +335,7 @@ fun MediaDeepfakeScanScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                                     selectedBitmap = bmp
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, Line),
+                                border = BorderStroke(1.dp, SentinelRiskColors.SAFE_GREEN.copy(alpha = 0.5f)),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Test Camera (Safe)", fontSize = 11.sp, color = SentinelRiskColors.SAFE_GREEN, fontWeight = FontWeight.Bold)
@@ -387,17 +388,17 @@ fun MediaDeepfakeScanScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                             coroutineScope.launch {
                                 for (i in 0 until analysisSteps.size) {
                                     analysisStep = i
-                                    delay(450)
+                                    delay(400)
                                 }
                                 if (selectedImageUri != null) {
-                                    vm.scanDeepfakeMedia(selectedImageUri!!, context)
+                                    vm.scanDeepfakeMediaSuspend(selectedImageUri!!, context)
                                 } else {
                                     // Trigger via API client with sample metadata
                                     val result = com.cybershield.app.core.network.CyberShieldApiClient().scanDeepfake(
                                         fileName = selectedFileName,
                                         isLikelyAi = isAiSampleSelected
                                     )
-                                    vm.setCustomScanResult(result)
+                                    vm.addScanResult(result)
                                 }
                                 isAnalyzing = false
                                 nav.navigate("media_result")
