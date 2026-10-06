@@ -666,13 +666,37 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
             val answerText = when {
                 type == "DEEPFAKE_DETECTOR" -> {
                     when {
-                        q.contains("how", ignoreCase = true) || q.contains("why", ignoreCase = true) || q.contains("fake", ignoreCase = true) || q.contains("ai", ignoreCase = true) ->
+                        q.contains("artifact") ->
+                            if (isDanger) {
+                                "Forensic pixel analysis identified: 1) Corneal specular reflection asymmetry between left and right eyes (reflections show contradictory virtual lighting vectors), 2) Spatial gradient discontinuities along earlobes, hair boundaries, and background seams, and 3) High-frequency 2D FFT spectral ripples characteristic of latent diffusion decoders. Authentic CMOS sensor PRNU noise is completely absent."
+                            } else {
+                                "Forensic sensor inspection detected genuine optical sensor noise (PRNU), continuous biological vascular skin tone gradients, natural optical lens bokeh dispersion, and matching specular reflections from environmental light sources. No synthetic interpolation artifacts were found."
+                            }
+                        q.contains("kyc") || q.contains("verification") || q.contains("identity") || q.contains("passport") ->
+                            if (isDanger) {
+                                "ABSOLUTELY NOT. Submitting AI-generated synthetic media for KYC, bank onboarding, passport, or legal identity checks constitutes biometric identity fraud. Anti-spoofing systems and liveness checks will flag and reject this submission."
+                            } else {
+                                "Yes. This photograph possesses authentic physical optical sensor signatures and biological facial topography consistent with genuine real-world capture, meeting digital KYC baseline standards."
+                            }
+                        q.contains("share") || q.contains("post") ->
+                            if (isDanger) {
+                                "If sharing, clearly label it as synthetic / AI-generated media. Never publish or forward it claiming it is a genuine photograph of a real person or real-world event, as this can facilitate social engineering or deepfake harassment."
+                            } else {
+                                "This is an authentic real-world photograph. You may share it normally while observing standard personal privacy precautions."
+                            }
+                        q.contains("simple") || q.contains("plain") || q.contains("words") ->
+                            if (isDanger) {
+                                "In simple words: A computer generated this picture out of thin air using an AI art generator (like Midjourney or Stable Diffusion) instead of a real camera lens focusing real light onto a physical sensor. The skin looks artificially smoothed and the eyes reflect fake light."
+                            } else {
+                                "In simple words: A real smartphone or camera took this photo of a real human being. The light, skin texture, and tiny camera sensor grain all prove it is genuine."
+                            }
+                        q.contains("how") || q.contains("why") || q.contains("fake") || q.contains("ai") ->
                             if (isDanger) {
                                 "Sentinel-VisionLLM inspected the photo across frequency and biometric layers. It flagged this photo as AI-generated because of: 1) High-frequency 2D FFT grid residuals characteristic of diffusion decoders, 2) Complete absence of physical CMOS sensor PRNU noise, and 3) Unnatural smoothing across skin pores without biological micro-capillaries. The model is 99.6% confident this is synthetic."
                             } else {
                                 "The photo was confirmed as an authentic camera capture. Our neural inspector detected physical CMOS sensor PRNU noise, natural optical lens chromatic dispersion, and biological skin vascular continuity that generative models cannot replicate."
                             }
-                        q.contains("do", ignoreCase = true) || q.contains("action", ignoreCase = true) || q.contains("safe", ignoreCase = true) ->
+                        q.contains("do") || q.contains("action") || q.contains("safe") ->
                             if (isDanger) {
                                 "Do not trust this image as real identity proof or KYC evidence. Do not transfer money or share private data based on this person's photo. If someone sent this to you claiming to be real, demand a live video call with specific gesture challenges."
                             } else {
@@ -684,13 +708,23 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                 }
                 type == "PAYMENT_FRAUD" || type == "QR_FRAUD" -> {
                     when {
-                        q.contains("safe to pay", ignoreCase = true) || q.contains("pay", ignoreCase = true) || q.contains("send", ignoreCase = true) ->
+                        q.contains("upi collect") || q.contains("collect scam") ->
+                            "A UPI Collect scam works by reversing the transaction direction: The fraudster sends you a 'Collect Request' disguised as a prize, refund, or cashback. They tell you to approve it and enter your UPI PIN. In reality, approved collect requests transfer money FROM your account TO the fraudster."
+                        q.contains("pin") || q.contains("entering") || q.contains("how does") ->
+                            "Fundamental UPI Banking Rule: Your UPI PIN is strictly for DEBITING (sending money out). You NEVER, EVER need to enter your UPI PIN to receive money, get a refund, or claim a cashback. If anyone asks you to enter your PIN to receive money, it is 100% fraud."
+                        q.contains("safe to pay") || q.contains("pay") || q.contains("send") ->
                             if (isDanger) {
                                 "NO! DO NOT PROCEED OR PAY. This payment request/screenshot is dangerous. In UPI protocols, you ONLY enter your UPI PIN to SEND money, never to receive a cashback or refund. Entering your PIN will instantly debit your account."
                             } else {
                                 "The payment identifier conforms to standard verified NPCI banking formats. However, always double-check the recipient's verified legal name in your UPI confirmation screen before submitting your PIN."
                             }
-                        q.contains("why", ignoreCase = true) || q.contains("dangerous", ignoreCase = true) || q.contains("fraud", ignoreCase = true) ->
+                        q.contains("what should i do") || q.contains("right now") || q.contains("action") ->
+                            if (isDanger) {
+                                "1) Decline or cancel the transaction immediately. 2) Do NOT share your UPI PIN, OTP, or CVV. 3) Report the fraudster's VPA / phone number to the National Cyber Crime Portal (1930 / cybercrime.gov.in) and your bank."
+                            } else {
+                                "Verify the displayed recipient name matches your intended beneficiary, then proceed normally."
+                            }
+                        q.contains("why") || q.contains("dangerous") || q.contains("fraud") || q.contains("flagged") ->
                             if (isDanger) {
                                 "This was assigned a danger score ($score/100) because it was identified as a disguised UPI Collect Request or manipulated fake receipt generator. Attackers use this to trick victims into authorizing outgoing debits under the guise of receiving cashbacks."
                             } else {
@@ -700,15 +734,89 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                             "Payment security rule: Entering your UPI PIN is solely for debiting your funds. If anyone promised you will receive money by approving this, it is 100% a scam."
                     }
                 }
+                type == "SMS_MESSAGE_SCAM" -> {
+                    when {
+                        q.contains("link") || q.contains("click") ->
+                            if (isDanger) {
+                                "Clicking the link will open a spoofed phishing page that mimics your bank, utility company, or government portal. It will attempt to steal your netbanking credentials, debit card numbers, or download a trojanized spyware APK onto your phone."
+                            } else {
+                                "The message links to legitimate domains verified against trusted registries. However, always ensure your browser displays https:// with a valid certificate."
+                            }
+                        q.contains("otp") || q.contains("steal") || q.contains("password") ->
+                            "Yes! Scammers use these urgent texts to trick you into entering your OTP on fake websites, or trick you into installing SMS-forwarding apps that silently intercept all your future banking OTPs. Never share OTPs with anyone."
+                        q.contains("what should i do") || q.contains("right now") || q.contains("action") ->
+                            if (isDanger) {
+                                "1) Do NOT click any links in this message. 2) NEVER reply with your OTP or login details. 3) Delete and report the message to 1909 or your bank's official fraud helpline."
+                            } else {
+                                "You can safely view this message. As a general rule, never share your banking PINs or OTPs with anyone."
+                            }
+                        q.contains("simple") || q.contains("plain") || q.contains("terms") ->
+                            if (isDanger) {
+                                "In simple terms: Someone is pretending to be a bank or official company to scare you into clicking a bad link so they can steal your money. Don't fall for it!"
+                            } else {
+                                "In simple terms: This is a normal, safe message from a legitimate service."
+                            }
+                        q.contains("why") || q.contains("dangerous") || q.contains("scam") || q.contains("fraud") ->
+                            if (isDanger) {
+                                "This message was flagged as DANGER ($score/100) because it uses coercive urgency triggers ('account suspended', 'immediate action required') or requests private credentials like OTPs or passwords. Legitimate banks and services never ask for secret PINs over message."
+                            } else {
+                                "This message is verified SAFE ($score/100). Linguistic and semantic inspection found no phishing URLs, no coercive urgency, no OTP requests, and standard sender headers."
+                            }
+                        else ->
+                            if (isDanger) {
+                                "Threat assessment: The message contains $signalsCount high-risk indicator(s). Protect your accounts and do not communicate with this sender."
+                            } else {
+                                "Summary: The scanned message is authentic and safe to read. No threat patterns detected."
+                            }
+                    }
+                }
+                type == "URL_PHISHING" || type == "URL_PHISHING_LOCAL_FALLBACK" -> {
+                    when {
+                        q.contains("password") || q.contains("steal") || q.contains("credential") ->
+                            if (isDanger) {
+                                "YES. This site was engineered specifically to harvest passwords and credit card credentials. The login forms send your entered data directly to an attacker-controlled server."
+                            } else {
+                                "No. This website is hosted on an authenticated, encrypted domain with a verified SSL certificate. It will not steal your credentials."
+                            }
+                        q.contains("identify") || q.contains("how did you") || q.contains("why") ->
+                            if (isDanger) {
+                                "The link ($target) was assigned a DANGER score ($score/100) because it displays high-risk phishing markers: domain typosquatting, uncertified SSL, or credential harvesting path tokens."
+                            } else {
+                                "The website ($target) is verified SAFE ($score/100). It utilizes valid TLS/HTTPS encryption, belongs to a reputable domain registry, and shows no history of malicious hosting or credential spoofing."
+                            }
+                        q.contains("legitimate") || q.contains("official") || q.contains("real website") ->
+                            "To find the legitimate site: Never follow links from unverified messages. Type the official brand name directly into Google or check the official app/statement for their verified domain address."
+                        q.contains("incognito") || q.contains("private") ->
+                            "NO! Incognito mode only prevents your phone from saving browsing history. Incognito DOES NOT protect you from phishing or password theft. If you enter your password on a fake site in incognito, scammers still receive it!"
+                        q.contains("action") || q.contains("what should i do") ->
+                            if (isDanger) {
+                                "CRITICAL ADVICE: Do NOT open this site or enter your passwords, credit cards, or personal information. Close the browser tab immediately."
+                            } else {
+                                "Summary: This URL destination is authentic and safe to browse. Always verify the secure padlock icon in your browser address bar."
+                            }
+                        else ->
+                            if (isDanger) {
+                                "The link ($target) is dangerous (Score: $score/100). Do not open or enter any information."
+                            } else {
+                                "Summary: This URL destination is authentic and safe to browse."
+                            }
+                    }
+                }
                 type == "CALL_VERIFIER" -> {
                     when {
-                        q.contains("answer", ignoreCase = true) || q.contains("pick", ignoreCase = true) ->
+                        q.contains("answer") || q.contains("pick") ->
                             if (isDanger) {
                                 "Do NOT answer this call. This caller ID ($target) matches known aggressive telemarketing, Wangiri one-ring toll fraud, or impersonation campaigns. If you answer, your number will be marked as active for further spam."
                             } else {
                                 "This number corresponds to standard telecommunications allocation with no active fraud complaints. You may answer normally with standard telephone caution."
                             }
-                        q.contains("why", ignoreCase = true) || q.contains("dangerous", ignoreCase = true) || q.contains("score", ignoreCase = true) ->
+                        q.contains("spoof") ->
+                            "Yes, scammers frequently use VoIP PBX gateways to fake or spoof legitimate bank or police numbers. If a caller asks for financial details, OTPs, or demands urgent money transfers, hang up and call the organization back on their official published phone number."
+                        q.contains("block") || q.contains("report") ->
+                            "Tap 'Block and Report' in your phone dialer, add the number to your device blacklist, and report it to telecom DND (Do Not Disturb) via SMS 'START 0' or 'REPORT' to 1909."
+                        q.contains("steal") || q.contains("money") ->
+                            "Yes! Phone scammers impersonate bank managers, police officers, tax officials, or couriers. They use social pressure to make you read OTPs, send money via UPI, or download remote-access apps like AnyDesk or TeamViewer."
+                        q.contains("why") || q.contains("score") || q.contains("dangerous") ->
                             if (isDanger) {
                                 "The number was scored at $score/100 (HIGH RISK) because its prefix or dialing sequence matches unallocated international ranges or automated robocalling PBX gateways frequently abused in Wangiri callback scams."
                             } else {
@@ -718,49 +826,34 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                             "Recommendation for $target: ${if (isDanger) "Block this number immediately and report it to your telecom provider / DND registry." else "Standard caller vigilance applies. Never share financial credentials over the phone."}"
                     }
                 }
-                type == "SMS_MESSAGE_SCAM" -> {
-                    if (isDanger) {
-                        when {
-                            q.contains("why", ignoreCase = true) || q.contains("dangerous", ignoreCase = true) || q.contains("fraud", ignoreCase = true) ->
-                                "This message was flagged as DANGER ($score/100) because it uses coercive urgency triggers ('account suspended', 'immediate action required') or requests private credentials like OTPs or passwords. Legitimate banks and services never ask for secret PINs over message."
-                            q.contains("do", ignoreCase = true) || q.contains("what should", ignoreCase = true) ->
-                                "Do NOT click any links in this message, and NEVER reply with your OTP or login details. Delete and report the message to 1909 or your bank's official fraud helpline."
-                            else ->
-                                "Threat assessment: The message contains $signalsCount high-risk indicator(s). Protect your accounts and do not communicate with this sender."
-                        }
-                    } else {
-                        when {
-                            q.contains("why", ignoreCase = true) || q.contains("safe", ignoreCase = true) ->
-                                "This message is verified SAFE ($score/100). Linguistic and semantic inspection found no phishing URLs, no coercive urgency, no OTP requests, and standard sender headers."
-                            q.contains("do", ignoreCase = true) || q.contains("what should", ignoreCase = true) ->
-                                "You can safely view this message. As a general rule, never share your banking PINs or OTPs with anyone."
-                            else ->
-                                "Summary: The scanned message is authentic and safe to read. No threat patterns detected."
-                        }
-                    }
-                }
-                type == "URL_PHISHING" || type == "URL_PHISHING_LOCAL_FALLBACK" -> {
-                    if (isDanger) {
-                        when {
-                            q.contains("why", ignoreCase = true) || q.contains("dangerous", ignoreCase = true) ->
-                                "The link ($target) was assigned a DANGER score ($score/100) because it displays high-risk phishing markers: domain typosquatting, uncertified SSL, or credential harvesting path tokens."
-                            else ->
-                                "CRITICAL ADVICE: Do NOT open this site or enter your passwords, credit cards, or personal information. Close the browser tab immediately."
-                        }
-                    } else {
-                        when {
-                            q.contains("why", ignoreCase = true) || q.contains("safe", ignoreCase = true) ->
-                                "The website ($target) is verified SAFE ($score/100). It utilizes valid TLS/HTTPS encryption, belongs to a reputable domain registry, and shows no history of malicious hosting or credential spoofing."
-                            else ->
-                                "Summary: This URL destination is authentic and safe to browse. Always verify the secure padlock icon in your browser address bar."
-                        }
-                    }
-                }
                 type == "APK_ANALYSIS" || type == "APP_SECURITY" -> {
-                    if (isDanger) {
-                        "This app is classified as DANGER because it is a third-party sideloaded APK installed outside the Google Play Store, bypassing Play Protect verification. Sideloaded APKs pose a high risk of unverified code execution, accessibility service abuse, and credential interception."
-                    } else {
-                        "This app is verified safe. It is certified by Google Play Protect or pre-installed by the device OEM with verified platform signatures."
+                    when {
+                        q.contains("why") || q.contains("third-party") || q.contains("danger") ->
+                            if (isDanger) {
+                                "This app is classified as DANGER because it is a third-party sideloaded APK installed outside the Google Play Store, bypassing Play Protect verification. Sideloaded APKs pose a high risk of unverified code execution, accessibility service abuse, and credential interception."
+                            } else {
+                                "This app is verified safe. It is certified by Google Play Protect or pre-installed by the device OEM with verified platform signatures."
+                            }
+                        q.contains("play store") || q.contains("source") ->
+                            if (isDanger) {
+                                "No, this app was NOT installed from Google Play Store. It was sideloaded from an external source (browser, file manager, or unknown installer), meaning it did not undergo Play Store malware scanning."
+                            } else {
+                                "Yes, this app is verified from Google Play Store or OEM pre-installed system partition with valid digital signatures."
+                            }
+                        q.contains("steal") || q.contains("screen") || q.contains("data") ->
+                            if (isDanger) {
+                                "If this sideloaded app requests Accessibility, Overlay Window, or SMS permissions, it CAN read your screen, intercept OTPs, and steal private banking data without your knowledge."
+                            } else {
+                                "This verified app operates within standard Android OS sandboxing and has passed automated security reviews."
+                            }
+                        q.contains("uninstall") || q.contains("restrict") || q.contains("remove") ->
+                            "Go to Android Settings -> Apps -> find the app -> tap 'Uninstall'. If it was granted Device Admin or Accessibility privileges, revoke those first in Settings -> Security before uninstalling."
+                        else ->
+                            if (isDanger) {
+                                "This sideloaded application ($target) scored $score/100 (DANGER). We recommend uninstalling it to avoid security compromises."
+                            } else {
+                                "This application ($target) scored $score/100 (SAFE) and complies with baseline platform security standards."
+                            }
                     }
                 }
                 else -> {

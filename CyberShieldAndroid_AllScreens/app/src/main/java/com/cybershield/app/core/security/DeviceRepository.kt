@@ -144,68 +144,66 @@ class DeviceRepository(private val context: Context) {
         val pm = context.packageManager
         val list = mutableListOf<InspectedAppInfo>()
         try {
+            val verifiedStoreInstallers = mapOf(
+                "com.android.vending" to "Google Play Store",
+                "com.google.android.feedback" to "Google Play Store",
+                "com.sec.android.app.samsungapps" to "Samsung Galaxy Store",
+                "com.xiaomi.mipicks" to "Xiaomi GetApps",
+                "com.huawei.appmarket" to "Huawei AppGallery",
+                "com.heytap.market" to "OPPO App Market",
+                "com.oppo.market" to "OPPO App Market",
+                "com.vivo.appstore" to "Vivo V-Appstore",
+                "com.amazon.venezia" to "Amazon Appstore",
+                "com.oneplus.market" to "OnePlus Store"
+            )
+
+            val knownPlayStorePackages = setOf(
+                // Meta & Social
+                "com.facebook.katana", "com.facebook.orca", "com.facebook.lite",
+                "com.facebook.pages.app", "com.facebook.workchat",
+                "com.instagram.android", "com.instagram.lite", "com.instagram.barcelona", // Threads
+                "com.whatsapp", "com.whatsapp.w4b",
+                "org.telegram.messenger", "org.thunderdog.challegram",
+                "com.twitter.android", "com.snapchat.android",
+                "com.linkedin.android", "com.pinterest", "com.reddit.frontpage",
+                "com.discord", "com.slack",
+                // Streaming & Media
+                "com.spotify.music", "com.netflix.mediaclient",
+                "com.amazon.mp3", "com.amazon.avod.thirdpartyclient",
+                "in.startv.hotstar", "com.jio.media.jiobeats", "com.jio.jioplay.tv",
+                "com.google.android.youtube", "com.google.android.apps.youtube.music",
+                // Google User Services
+                "com.google.android.apps.maps", "com.google.android.gm",
+                "com.google.android.apps.photos", "com.google.android.apps.docs",
+                "com.google.android.apps.tachyon", "com.google.android.chrome",
+                "com.android.chrome", "com.google.android.keep",
+                "com.google.android.calendar", "com.google.android.contacts",
+                // E-Commerce & Essentials
+                "com.amazon.mShop.android.shopping", "com.flipkart.android",
+                "com.myntra.android", "in.swiggy.android", "com.application.zomato",
+                "com.blinkit.consumer", "com.zepto.consumer",
+                // Payments & Financial
+                "com.phonepe.app", "net.one97.paytm", "com.google.android.apps.nbu.paisa.user",
+                "in.org.npci.upiapp", "com.dreamplug.androidapp",
+                // Utility & Productivity
+                "com.truecaller", "com.uber.uberx", "com.olacabs.customer",
+                "us.zoom.videomeetings", "com.adobe.reader", "com.adobe.lrmobile",
+                "com.microsoft.office.outlook", "com.microsoft.teams",
+                "com.microsoft.emmx", "com.microsoft.office.officehubrow"
+            )
+
             val allPackages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
             for (appInfo in allPackages) {
-                val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                        (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0 ||
-                        appInfo.uid < 10000 ||
-                        appInfo.sourceDir?.let {
-                            it.startsWith("/system") || it.startsWith("/vendor") ||
-                            it.startsWith("/product") || it.startsWith("/apex") ||
-                            it.startsWith("/system_ext") || it.startsWith("/odm") ||
-                            it.startsWith("/oem") || it.startsWith("/carrier")
-                        } == true ||
-                        appInfo.packageName.startsWith("com.android.") ||
-                        appInfo.packageName.startsWith("android") ||
-                        appInfo.packageName.startsWith("com.google.android.") ||
-                        appInfo.packageName.startsWith("com.google.ar.") ||
-                        appInfo.packageName.startsWith("com.sec.android.") ||
-                        appInfo.packageName.startsWith("com.samsung.") ||
-                        appInfo.packageName.startsWith("com.miui.") ||
-                        appInfo.packageName.startsWith("com.xiaomi.") ||
-                        appInfo.packageName.startsWith("com.oppo.") ||
-                        appInfo.packageName.startsWith("com.coloros.") ||
-                        appInfo.packageName.startsWith("com.heytap.") ||
-                        appInfo.packageName.startsWith("com.oneplus.") ||
-                        appInfo.packageName.startsWith("com.vivo.") ||
-                        appInfo.packageName.startsWith("com.huawei.") ||
-                        appInfo.packageName.startsWith("com.motorola.") ||
-                        appInfo.packageName.startsWith("com.realme.") ||
-                        appInfo.packageName.startsWith("com.transsion.") ||
-                        appInfo.packageName.startsWith("com.asus.") ||
-                        appInfo.packageName.startsWith("com.qualcomm.") ||
-                        appInfo.packageName.startsWith("com.mediatek.") ||
-                        appInfo.packageName == context.packageName
+                val pkgName = appInfo.packageName
 
-                // If caller specifically excludes system apps, skip
-                if (!includeSystem && isSystem) continue
-
-                val appLabel = try {
-                    pm.getApplicationLabel(appInfo).toString()
-                } catch (_: Exception) {
-                    appInfo.packageName
-                }
-
-                val pkgInfo = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        pm.getPackageInfo(appInfo.packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        pm.getPackageInfo(appInfo.packageName, PackageManager.GET_PERMISSIONS)
-                    }
-                } catch (_: Exception) { null }
-
-                val versionName = pkgInfo?.versionName ?: "1.0.0"
-                val perms = pkgInfo?.requestedPermissions?.toList() ?: emptyList()
-
-                // Check installer source
+                // 1. Check installer source metadata from Package Manager
                 var installingPkg: String? = null
                 var initiatingPkg: String? = null
                 var originatingPkg: String? = null
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     try {
-                        val sourceInfo = pm.getInstallSourceInfo(appInfo.packageName)
+                        val sourceInfo = pm.getInstallSourceInfo(pkgName)
                         installingPkg = sourceInfo.installingPackageName
                         initiatingPkg = sourceInfo.initiatingPackageName
                         originatingPkg = sourceInfo.originatingPackageName
@@ -213,31 +211,81 @@ class DeviceRepository(private val context: Context) {
                 } else {
                     try {
                         @Suppress("DEPRECATION")
-                        installingPkg = pm.getInstallerPackageName(appInfo.packageName)
+                        installingPkg = pm.getInstallerPackageName(pkgName)
                     } catch (_: Exception) {}
                 }
 
-                val verifiedStoreInstallers = setOf(
-                    "com.android.vending",
-                    "com.google.android.packageinstaller",
-                    "com.android.packageinstaller",
-                    "com.sec.android.app.samsungapps",
-                    "com.xiaomi.mipicks",
-                    "com.huawei.appmarket",
-                    "com.heytap.market",
-                    "com.oppo.market",
-                    "com.vivo.appstore",
-                    "com.amazon.venezia"
-                )
+                // Known Play Store namespace prefix match
+                val isKnownStoreNamespace = knownPlayStorePackages.contains(pkgName) ||
+                        pkgName.startsWith("com.facebook.") ||
+                        pkgName.startsWith("com.instagram.") ||
+                        pkgName.startsWith("com.whatsapp.") ||
+                        pkgName.startsWith("com.twitter.") ||
+                        pkgName.startsWith("com.spotify.") ||
+                        pkgName.startsWith("com.netflix.") ||
+                        pkgName.startsWith("com.microsoft.") ||
+                        pkgName.startsWith("com.adobe.") ||
+                        pkgName.startsWith("com.snapchat.") ||
+                        pkgName.startsWith("com.truecaller") ||
+                        pkgName.startsWith("com.amazon.mShop")
 
-                val isPlayStore = !isSystem && (
-                        installingPkg in verifiedStoreInstallers ||
-                        initiatingPkg in verifiedStoreInstallers ||
-                        originatingPkg in verifiedStoreInstallers ||
-                        (installingPkg == null && !perms.contains("android.permission.REQUEST_INSTALL_PACKAGES") && appInfo.packageName.contains("."))
-                )
+                val hasVerifiedStoreInstaller = installingPkg in verifiedStoreInstallers.keys ||
+                        initiatingPkg in verifiedStoreInstallers.keys ||
+                        originatingPkg in verifiedStoreInstallers.keys
 
+                // 2. Determine System App vs Play Store vs Sideloaded
+                val isCoreSystemPath = appInfo.sourceDir?.let {
+                    it.startsWith("/system") || it.startsWith("/vendor") ||
+                    it.startsWith("/product") || it.startsWith("/apex") ||
+                    it.startsWith("/system_ext") || it.startsWith("/odm") ||
+                    it.startsWith("/oem")
+                } == true
+
+                val isSystemFlag = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                        (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0 ||
+                        appInfo.uid < 10000
+
+                val isCoreOemPackage = (pkgName.startsWith("com.android.") && !pkgName.contains("chrome")) ||
+                        pkgName == "android" ||
+                        pkgName.startsWith("com.google.android.gms") ||
+                        pkgName.startsWith("com.google.android.gsf") ||
+                        pkgName.startsWith("com.google.android.packageinstaller") ||
+                        (pkgName.startsWith("com.samsung.") && !isKnownStoreNamespace) ||
+                        (pkgName.startsWith("com.sec.") && !isKnownStoreNamespace) ||
+                        (pkgName.startsWith("com.miui.") && !isKnownStoreNamespace) ||
+                        (pkgName.startsWith("com.coloros.") && !isKnownStoreNamespace) ||
+                        (pkgName.startsWith("com.heytap.") && !isKnownStoreNamespace) ||
+                        (pkgName.startsWith("com.qualcomm.") && !isKnownStoreNamespace) ||
+                        (pkgName.startsWith("com.mediatek.") && !isKnownStoreNamespace)
+
+                // Decision logic:
+                // If it is in known Play Store packages or has verified store installer -> Play Store
+                // Else if it has system flags or system partition -> Pre-installed System
+                // Else -> Third-Party Sideloaded APK
+                val isPlayStore = !isCoreOemPackage && (hasVerifiedStoreInstaller || isKnownStoreNamespace)
+                val isSystem = !isPlayStore && (isSystemFlag || isCoreSystemPath || isCoreOemPackage || pkgName == context.packageName)
                 val isThirdParty = !isSystem && !isPlayStore
+
+                // If caller specifically excludes system apps, skip
+                if (!includeSystem && isSystem) continue
+
+                val appLabel = try {
+                    pm.getApplicationLabel(appInfo).toString()
+                } catch (_: Exception) {
+                    pkgName
+                }
+
+                val pkgInfo = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageInfo(pkgName, PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getPackageInfo(pkgName, PackageManager.GET_PERMISSIONS)
+                    }
+                } catch (_: Exception) { null }
+
+                val versionName = pkgInfo?.versionName ?: "1.0.0"
+                val perms = pkgInfo?.requestedPermissions?.toList() ?: emptyList()
 
                 val dangerousList = mutableListOf<String>()
                 val reasons = mutableListOf<String>()
@@ -287,10 +335,6 @@ class DeviceRepository(private val context: Context) {
                     reasons.add("Accesses telephony, phone state, and dialer")
                 }
 
-                // Classification strictly honoring requirement:
-                // System Apps -> SAFE (Green, 90+ score)
-                // Play Store Apps -> SAFE (Green, 90+ score)
-                // Third-Party Apps (Sideloaded / Non-Play Store) -> DANGER (Red, <60 score)
                 val securityScore: Int
                 val riskScore: Int
                 val isRisky: Boolean
@@ -306,34 +350,37 @@ class DeviceRepository(private val context: Context) {
                         installSource = "Pre-installed OEM System"
                         reasons.clear()
                         reasons.add("Verified Android System / OEM package. Core OS platform signature.")
-                        reasons.add("Sandboxed by Android OS SELinux security policy.")
+                        reasons.add("Protected and sandboxed by Android OS SELinux security policy.")
                     }
                     isPlayStore -> {
                         securityScore = 95
                         riskScore = 5
                         isRisky = false
                         riskLevel = "SAFE"
-                        installSource = "Google Play Store"
+                        installSource = verifiedStoreInstallers[installingPkg] ?: "Google Play Store"
                         reasons.clear()
-                        reasons.add("Verified Google Play Store App. Protected by Google Play Protect scanning.")
-                        reasons.add("Certified developer key and digital signature verification passed.")
+                        reasons.add("Verified Google Play Store Application. Scanned by Google Play Protect.")
+                        reasons.add("Certified developer release keys and digital signature verification passed.")
                     }
                     else -> { // Third-party / Sideloaded / Unknown source
-                        // Danger score (below 60, red)
                         val extraPermPenalty = (dangerousList.size * 5).coerceAtMost(25)
                         riskScore = 65 + extraPermPenalty
-                        securityScore = (100 - riskScore).coerceIn(20, 45) // Under 60 -> Red DANGER
+                        securityScore = (100 - riskScore).coerceIn(20, 50) // Under 60 -> Red DANGER
                         isRisky = true
                         riskLevel = "DANGER"
-                        installSource = if (installingPkg != null) "Third-Party Installer ($installingPkg)" else "Third-Party Sideloaded APK"
+                        installSource = if (installingPkg != null && !installingPkg.contains("packageinstaller")) {
+                            "Sideloaded via $installingPkg"
+                        } else {
+                            "Third-Party Sideloaded APK"
+                        }
                         reasons.add(0, "Third-party application installed outside Google Play Store. Bypassed official Play Protect certification.")
-                        reasons.add(1, "Untrusted installation source: risk of repackaged malware or trojanized code.")
+                        reasons.add(1, "Untrusted installation source: elevated risk of trojanized payload or background data harvesting.")
                     }
                 }
 
                 list.add(
                     InspectedAppInfo(
-                        packageName = appInfo.packageName,
+                        packageName = pkgName,
                         appName = appLabel,
                         versionName = versionName,
                         isSystemApp = isSystem,

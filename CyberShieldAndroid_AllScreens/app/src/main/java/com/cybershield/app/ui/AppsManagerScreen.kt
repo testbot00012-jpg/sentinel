@@ -173,14 +173,14 @@ fun FullAppsManagerScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                 FilterTabChip("All Apps (${apps.size})", selected = (selectedFilter == "ALL")) {
                     selectedFilter = "ALL"
                 }
-                FilterTabChip("Danger (${dangerThirdPartyApps.size})", selected = (selectedFilter == "DANGER"), activeColor = SentinelRiskColors.DANGER_RED) {
-                    selectedFilter = "DANGER"
-                }
                 FilterTabChip("Play Store (${playStoreApps.size})", selected = (selectedFilter == "PLAYSTORE"), activeColor = SentinelRiskColors.SAFE_GREEN) {
                     selectedFilter = "PLAYSTORE"
                 }
-                FilterTabChip("System Apps (${systemApps.size})", selected = (selectedFilter == "SYSTEM"), activeColor = SentinelRiskColors.SAFE_GREEN) {
+                FilterTabChip("System Apps (${systemApps.size})", selected = (selectedFilter == "SYSTEM"), activeColor = Cyan) {
                     selectedFilter = "SYSTEM"
+                }
+                FilterTabChip("Third-Party / Sideloaded (${dangerThirdPartyApps.size})", selected = (selectedFilter == "DANGER"), activeColor = SentinelRiskColors.DANGER_RED) {
+                    selectedFilter = "DANGER"
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -295,12 +295,22 @@ private fun AppInspectionCard(app: InspectedAppInfo, context: Context) {
                         maxLines = 1,
                         modifier = Modifier.padding(top = 1.dp)
                     )
-                    Text(
-                        app.installSource,
-                        color = if (app.isSideloaded) SentinelRiskColors.LIGHT_ORANGE else Color(0xFF64748B),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Spacer(Modifier.height(3.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val (srcColor, srcIcon) = when {
+                            app.isPlayStore -> Pair(SentinelRiskColors.SAFE_GREEN, Icons.Default.CheckCircle)
+                            app.isSystemApp -> Pair(Cyan, Icons.Default.Shield)
+                            else -> Pair(SentinelRiskColors.DANGER_RED, Icons.Default.Warning)
+                        }
+                        Icon(srcIcon, contentDescription = null, tint = srcColor, modifier = Modifier.size(11.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            app.installSource,
+                            color = srcColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
                 // Security Score Badge

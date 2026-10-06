@@ -90,7 +90,7 @@ fun CyberShieldApp(viewModel: MainSecurityViewModel = viewModel()) {
             composable("apps") { AppsManagerScreen(nav, viewModel) }
             composable("privacy") { PrivacyCenterScreen(nav, viewModel) }
             composable("storage") { StorageManagerScreen(nav, viewModel) }
-            composable("network") { NetworkGuardScreen(nav, viewModel) }
+            composable("network") { DeviceHealthScreen(nav, viewModel) }
             composable("message_result") { ResultScreen(nav, "Message Scam Result", viewModel) }
             composable("url_protection") { ResultScreen(nav, "URL Protection", viewModel) }
             composable("qr_payment") { ResultScreen(nav, "QR & Payment Safety", viewModel) }
@@ -279,12 +279,11 @@ fun FigmaHeader(
     title: String,
     subtitle: String,
     nav: NavHostController,
-    showBell: Boolean = true
+    showBell: Boolean = true,
+    modifier: Modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = modifier,
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -429,13 +428,10 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                 title = greetingTitle,
                 subtitle = localizedSubtitle,
                 nav = nav,
-                showBell = true
+                showBell = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp)
             )
-            Spacer(Modifier.height(2.dp))
-        }
-
-        // Status badge: Dynamic PROTECTED / ATTENTION / AT RISK
-        item {
+            // Status badge: Dynamic PROTECTED / ATTENTION / AT RISK
             Surface(
                 color = badgeBg,
                 shape = RoundedCornerShape(12.dp),
@@ -500,7 +496,7 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
             Spacer(Modifier.height(20.dp))
         }
 
-        // Quick Actions 2x2 Grid
+        // Quick Actions 3-Card Balanced Row (Network removed)
         item {
             Text("Quick actions", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(Modifier.height(10.dp))
@@ -519,21 +515,11 @@ private fun HomeScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                     onClick = { nav.navigate("apps") },
                     modifier = Modifier.weight(1f)
                 )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickActionCard(
                     title = "Storage",
                     icon = Icons.Default.Folder,
                     iconColor = Color(0xFFFBBF24),
                     onClick = { nav.navigate("storage") },
-                    modifier = Modifier.weight(1f)
-                )
-                QuickActionCard(
-                    title = "Network",
-                    icon = Icons.Default.Wifi,
-                    iconColor = Color(0xFF34D399),
-                    onClick = { nav.navigate("network") },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -610,17 +596,18 @@ private fun QuickActionCard(
         colors = CardDefaults.cardColors(containerColor = CardBg),
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, Line),
-        modifier = modifier.height(72.dp)
+        modifier = modifier.height(78.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(vertical = 10.dp, horizontal = 4.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
         }
     }
 }
@@ -3351,35 +3338,6 @@ private fun RealStorageInspectorScreen(
     }
 }
 
-@Composable
-private fun NetworkGuardScreen(nav: NavHostController, vm: MainSecurityViewModel) {
-    val telemetry by vm.telemetry.collectAsState()
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp)
-    ) {
-        item {
-            TopBar("Network Guard", nav)
-            SectionTitle("Transport Security", "Real connectivity inspection")
-        }
-        item {
-            GlassCard(Modifier.padding(top = 10.dp)) {
-                Text("Active Network Interface", fontWeight = FontWeight.Bold)
-                Text("Type: ${telemetry?.networkType ?: "NONE"}", color = Cyan, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-                Text("VPN Tunnel: ${if (telemetry?.isVpnActive == true) "Active (Encrypted)" else "Inactive"}", color = if (telemetry?.isVpnActive == true) Color(0xFF34D399) else Muted, fontSize = 13.sp)
-            }
-        }
-        val netScreens = listOf("Wi-Fi Security", "Current Network", "Network Risk", "DNS Security", "VPN Status", "Network History")
-        items(netScreens) { title ->
-            val spec = ScreenRegistry.all.firstOrNull { it.title == title }
-            FeatureRow(title, "Inspect network item") {
-                if (spec != null) nav.navigate("feature/${spec.route}")
-            }
-        }
-    }
-}
 
 @Composable
 private fun RiskScreen(nav: NavHostController, vm: MainSecurityViewModel) {
