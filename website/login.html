@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In - Sentinel AI Cybersecurity Console</title>
-  <meta name="description" content="Secure login and authentication gateway for Sentinel AI Cyber Defense Console.">
+  <title>Sign In - Sentinel AI Enterprise Cyber Defense</title>
+  <meta name="description" content="Secure authentication gateway for Sentinel AI Cyber Defense & Fraud Shield Console.">
 
-  <!-- Instant redirect to index.html if already logged in -->
+  <!-- Instant redirect to index.html if already authenticated -->
   <script>
     (function() {
       const token = localStorage.getItem('sentinel_auth_token');
@@ -20,133 +20,357 @@
     })();
   </script>
 
-  <!-- Google Fonts -->
+  <!-- Google Fonts: Outfit (headings), Inter (body), JetBrains Mono (tech/telemetry) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="./css/style.css">
+
+  <style>
+    /* Dedicated Login View Visual Enhancements */
+    .login-body-wrapper {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2.5rem 1.25rem;
+      position: relative;
+    }
+
+    .login-card-container {
+      width: 100%;
+      max-width: 460px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .login-shield-badge {
+      width: 76px;
+      height: 76px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.16) 0%, rgba(99, 102, 241, 0.16) 100%);
+      border: 1.5px solid rgba(0, 242, 254, 0.4);
+      box-shadow: 0 0 40px rgba(0, 242, 254, 0.3), inset 0 0 20px rgba(0, 242, 254, 0.15);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.25rem;
+    }
+
+    .login-shield-badge svg {
+      width: 40px;
+      height: 40px;
+      fill: #00f2fe;
+      filter: drop-shadow(0 0 10px rgba(0, 242, 254, 0.6));
+    }
+
+    .login-title-gradient {
+      font-size: 2.15rem;
+      font-family: var(--font-heading);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      background: linear-gradient(135deg, #ffffff 0%, #00f2fe 55%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.35rem;
+      line-height: 1.15;
+    }
+
+    .login-glass-card {
+      background: rgba(11, 17, 32, 0.88);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      padding: 2.5rem 2.25rem;
+      box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.8), 0 0 45px rgba(0, 242, 254, 0.14);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-glass-card::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(0, 242, 254, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .login-tabs-segmented {
+      display: flex;
+      gap: 6px;
+      background: rgba(6, 9, 19, 0.75);
+      padding: 5px;
+      border-radius: 14px;
+      margin-bottom: 1.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .login-tab-pill {
+      flex: 1;
+      padding: 0.65rem 1rem;
+      text-align: center;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .login-tab-pill:hover:not(.active) {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .login-tab-pill.active {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.22) 0%, rgba(99, 102, 241, 0.22) 100%);
+      color: #00f2fe;
+      border-color: rgba(0, 242, 254, 0.4);
+      box-shadow: 0 0 16px rgba(0, 242, 254, 0.25);
+    }
+
+    .input-with-icon {
+      position: relative;
+      width: 100%;
+    }
+
+    .input-leading-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--cyan-primary);
+      font-size: 1.1rem;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .input-with-icon .cyber-input {
+      padding-left: 44px !important;
+    }
+
+    .input-trailing-action {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--text-sub);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px;
+      transition: color 0.2s ease;
+    }
+
+    .input-trailing-action:hover {
+      color: var(--cyan-primary);
+    }
+
+    .quick-creds-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: var(--radius-full);
+      background: rgba(0, 242, 254, 0.06);
+      border: 1px dashed rgba(0, 242, 254, 0.3);
+      color: var(--cyan-primary);
+      font-size: 0.74rem;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      margin-bottom: 1.25rem;
+    }
+
+    .quick-creds-chip:hover {
+      background: rgba(0, 242, 254, 0.14);
+      border-style: solid;
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.2);
+    }
+  </style>
 </head>
-<body style="min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:2rem 1rem;">
+<body class="login-body-wrapper">
   <!-- Ambient Cyber Background Grid -->
   <div class="cyber-grid-overlay"></div>
 
-  <!-- Main Login Container -->
-  <div style="width:100%;max-width:460px;position:relative;z-index:10;">
+  <div class="login-card-container">
     <!-- Brand Header -->
-    <div style="text-align:center;margin-bottom:2rem;">
-      <div style="display:inline-flex;align-items:center;justify-content:center;width:68px;height:68px;border-radius:20px;background:rgba(0,242,254,0.1);border:1px solid rgba(0,242,254,0.3);box-shadow:0 0 35px rgba(0,242,254,0.25);margin-bottom:1rem;">
-        <svg viewBox="0 0 24 24" width="36" height="36" fill="#00f2fe">
+    <div style="text-align:center;margin-bottom:1.75rem;">
+      <div class="login-shield-badge float-shield-anim">
+        <svg viewBox="0 0 24 24">
           <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm0 3.3l6 3.33v4.37c0 4.14-2.82 8.01-6 9.17-3.18-1.16-6-5.03-6-9.17V8.63l6-3.33zm-1 5.7h2v5h-2zm0 6h2v2h-2z"/>
         </svg>
       </div>
-      <h1 style="font-size:1.85rem;font-family:var(--font-heading);letter-spacing:0.04em;color:var(--text-main);margin-bottom:0.25rem;">
-        SENTINEL AI
-      </h1>
-      <div class="status-badge" style="display:inline-flex;margin:0 auto;">
+
+      <h1 class="login-title-gradient">SENTINEL AI</h1>
+
+      <div class="status-badge" style="margin-top:0.35rem;">
         <span class="pulse-dot"></span>
         <span>ENTERPRISE SECURITY ACCESS GATEWAY</span>
       </div>
     </div>
 
     <!-- Auth Glassmorphism Card -->
-    <div class="glass-panel" style="padding:2.25rem 2rem;border-radius:var(--radius-lg);box-shadow:var(--shadow-card);">
-      <!-- Auth Mode Tabs -->
-      <div style="display:flex;gap:0.5rem;background:rgba(11,17,32,0.6);padding:4px;border-radius:var(--radius-md);margin-bottom:1.75rem;border:1px solid var(--border-subtle);">
-        <button id="tab-btn-login" class="filter-btn active" style="flex:1;text-align:center;padding:0.6rem;">Sign In</button>
-        <button id="tab-btn-register" class="filter-btn" style="flex:1;text-align:center;padding:0.6rem;">Create Account</button>
+    <div class="login-glass-card">
+      <!-- Segmented Tab Switcher -->
+      <div class="login-tabs-segmented">
+        <button id="tab-btn-login" type="button" class="login-tab-pill active">
+          <span>⚡</span> Sign In
+        </button>
+        <button id="tab-btn-register" type="button" class="login-tab-pill">
+          <span>🛡️</span> Create Account
+        </button>
+      </div>
+
+      <!-- Quick 1-Click Credentials Auto-Fill Chip -->
+      <div style="text-align:center;">
+        <button type="button" id="btn-quick-creds" class="quick-creds-chip" title="Click to auto-fill sample test account">
+          <span>⚡</span> Quick Demo Login (Click to fill)
+        </button>
       </div>
 
       <!-- 1. SIGN IN FORM -->
       <form id="form-login" style="display:block;">
-        <div class="form-group" style="margin-bottom:1.25rem;">
-          <label for="login-email" class="form-label">Email Address</label>
-          <input 
-            type="email" 
-            id="login-email" 
-            class="cyber-input" 
-            placeholder="name@domain.com" 
-            required 
-            autocomplete="email"
-          />
+        <div class="form-group">
+          <label for="login-email" class="form-label">
+            <span>✉️</span> Email Address
+          </label>
+          <div class="input-with-icon">
+            <span class="input-leading-icon">@</span>
+            <input 
+              type="email" 
+              id="login-email" 
+              class="cyber-input" 
+              placeholder="officer@sentinel.ai" 
+              required 
+              autocomplete="email"
+            />
+          </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:1.75rem;">
-          <label for="login-password" class="form-label">Password</label>
-          <input 
-            type="password" 
-            id="login-password" 
-            class="cyber-input" 
-            placeholder="Enter account password" 
-            required 
-            autocomplete="current-password"
-          />
+        <div class="form-group" style="margin-top:1.25rem;">
+          <label for="login-password" class="form-label">
+            <span>🔒</span> Password
+          </label>
+          <div class="input-with-icon">
+            <span class="input-leading-icon">🔑</span>
+            <input 
+              type="password" 
+              id="login-password" 
+              class="cyber-input" 
+              placeholder="Enter your security password" 
+              required 
+              autocomplete="current-password"
+            />
+            <button type="button" class="input-trailing-action" id="toggle-pwd-login" title="Toggle visibility">
+              👁️
+            </button>
+          </div>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-block" style="padding:0.85rem;font-size:0.95rem;">
-          <span>⚡</span> Sign In to Sentinel Console
-        </button>
+        <div style="margin-top:1.75rem;">
+          <button type="submit" class="btn btn-primary btn-block">
+            <span>⚡</span> Sign In to Sentinel Console
+          </button>
+        </div>
       </form>
 
       <!-- 2. CREATE ACCOUNT FORM -->
       <form id="form-register" style="display:none;">
-        <div class="form-group" style="margin-bottom:1.25rem;">
-          <label for="reg-name" class="form-label">Full Name</label>
-          <input 
-            type="text" 
-            id="reg-name" 
-            class="cyber-input" 
-            placeholder="Full Name / Officer Handle" 
-            required 
-            autocomplete="name"
-          />
+        <div class="form-group">
+          <label for="reg-name" class="form-label">
+            <span>👤</span> Full Name
+          </label>
+          <div class="input-with-icon">
+            <span class="input-leading-icon">ID</span>
+            <input 
+              type="text" 
+              id="reg-name" 
+              class="cyber-input" 
+              placeholder="Officer Name / Security Handle" 
+              required 
+              autocomplete="name"
+            />
+          </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:1.25rem;">
-          <label for="reg-email" class="form-label">Email Address</label>
-          <input 
-            type="email" 
-            id="reg-email" 
-            class="cyber-input" 
-            placeholder="name@domain.com" 
-            required 
-            autocomplete="email"
-          />
+        <div class="form-group" style="margin-top:1.25rem;">
+          <label for="reg-email" class="form-label">
+            <span>✉️</span> Official Email
+          </label>
+          <div class="input-with-icon">
+            <span class="input-leading-icon">@</span>
+            <input 
+              type="email" 
+              id="reg-email" 
+              class="cyber-input" 
+              placeholder="officer@sentinel.ai" 
+              required 
+              autocomplete="email"
+            />
+          </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:1.75rem;">
-          <label for="reg-password" class="form-label">Password (Minimum 6 characters)</label>
-          <input 
-            type="password" 
-            id="reg-password" 
-            class="cyber-input" 
-            placeholder="Create a strong password" 
-            required 
-            minlength="6"
-            autocomplete="new-password"
-          />
+        <div class="form-group" style="margin-top:1.25rem;">
+          <label for="reg-password" class="form-label">
+            <span>🔒</span> Security Password (Min 6 Characters)
+          </label>
+          <div class="input-with-icon">
+            <span class="input-leading-icon">🔑</span>
+            <input 
+              type="password" 
+              id="reg-password" 
+              class="cyber-input" 
+              placeholder="Create strong account password" 
+              required 
+              minlength="6"
+              autocomplete="new-password"
+            />
+            <button type="button" class="input-trailing-action" id="toggle-pwd-reg" title="Toggle visibility">
+              👁️
+            </button>
+          </div>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-block" style="padding:0.85rem;font-size:0.95rem;">
-          <span>🛡️</span> Create Sentinel Account
-        </button>
+        <div style="margin-top:1.75rem;">
+          <button type="submit" class="btn btn-primary btn-block">
+            <span>🛡️</span> Create Sentinel Account
+          </button>
+        </div>
       </form>
 
-      <!-- Trust Badges -->
-      <div style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid var(--border-subtle);display:flex;justify-content:center;gap:1rem;flex-wrap:wrap;">
-        <span class="footer-pill" style="font-size:0.72rem;padding:3px 8px;">🔒 TLS 1.3 Encrypted</span>
-        <span class="footer-pill" style="font-size:0.72rem;padding:3px 8px;"><span class="pulse-dot"></span> Railway Live Cloud</span>
-        <span class="footer-pill" style="font-size:0.72rem;padding:3px 8px;">📱 Android Synced</span>
+      <!-- Trust Badges Strip -->
+      <div style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid var(--border-subtle);display:flex;justify-content:center;gap:0.75rem;flex-wrap:wrap;">
+        <span class="footer-pill">🔒 TLS 1.3 Encrypted</span>
+        <span class="footer-pill"><span class="pulse-dot"></span> Railway Cloud Node</span>
+        <span class="footer-pill">📱 Android Synced</span>
       </div>
     </div>
 
-    <!-- Footer Copyright -->
-    <div style="text-align:center;margin-top:1.5rem;color:var(--text-sub);font-size:0.75rem;">
-      © 2026 Sentinel Cyber Technologies • Zero-Trust Access
+    <!-- Security Advisory Subtext -->
+    <div style="text-align:center;margin-top:1.5rem;color:var(--text-sub);font-size:0.75rem;line-height:1.5;">
+      Zero-Trust Authentication • Telemetry synchronized across authorized endpoints.<br>
+      © 2026 Sentinel Cyber Technologies. All rights reserved.
     </div>
   </div>
 
-  <!-- Toast Container -->
+  <!-- Toast Notification Hub -->
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Scripts -->
@@ -157,6 +381,39 @@
     document.addEventListener('DOMContentLoaded', () => {
       if (window.authController) {
         window.authController.init();
+      }
+
+      // Password visibility toggle helpers
+      const setupToggle = (btnId, inputId) => {
+        const btn = document.getElementById(btnId);
+        const input = document.getElementById(inputId);
+        if (btn && input) {
+          btn.addEventListener('click', () => {
+            if (input.type === 'password') {
+              input.type = 'text';
+              btn.textContent = '🔒';
+            } else {
+              input.type = 'password';
+              btn.textContent = '👁️';
+            }
+          });
+        }
+      };
+      setupToggle('toggle-pwd-login', 'login-password');
+      setupToggle('toggle-pwd-reg', 'reg-password');
+
+      // 1-Click Quick Demo credentials helper button
+      const quickCredsBtn = document.getElementById('btn-quick-creds');
+      if (quickCredsBtn) {
+        quickCredsBtn.addEventListener('click', () => {
+          const emailInput = document.getElementById('login-email');
+          const passInput = document.getElementById('login-password');
+          if (emailInput && passInput) {
+            emailInput.value = 'testuser100@sentinel.ai';
+            passInput.value = 'Password123!';
+            window.toast('Demo credentials auto-filled! Click "Sign In" to proceed.', 'info');
+          }
+        });
       }
     });
   </script>
