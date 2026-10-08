@@ -221,6 +221,16 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    val selectedHistoryCategory = MutableStateFlow("ALL")
+
+    fun setHistoryCategory(category: String) {
+        selectedHistoryCategory.value = category
+    }
+
+    fun setCurrentScanResult(result: SecurityResult) {
+        _currentScanResult.value = result
+    }
+
     suspend fun syncCloudScans() {
         val res = apiClient.getScanHistory()
         res.onSuccess { cloudScans ->
@@ -233,6 +243,9 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                     withContext(Dispatchers.Main) {
                         _scanHistory.value = merged
                         savePersistedScanHistory(merged)
+                        if (_currentScanResult.value == null) {
+                            _currentScanResult.value = newFromCloud.first()
+                        }
                         newFromCloud.firstOrNull()?.let { s ->
                             recordSecurityAuditLog(
                                 "Cloud Scan Synced",
@@ -1351,7 +1364,7 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         _assistantMessages.value = _assistantMessages.value + userMsg
 
         viewModelScope.launch {
-            val responseText = apiClient.chatAssistant(query)
+            val responseText = apiClient.chatAssistant(query, language = currentLanguage.value)
             val assistantMsg = AssistantChatMessage(text = responseText, isFromUser = false)
             _assistantMessages.value = _assistantMessages.value + assistantMsg
         }

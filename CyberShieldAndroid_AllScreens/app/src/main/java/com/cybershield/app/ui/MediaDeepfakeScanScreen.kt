@@ -44,6 +44,9 @@ private val Muted = Color(0xFF8E99AA)
 fun MediaDeepfakeScanScreen(nav: NavHostController, vm: MainSecurityViewModel) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val currentLang by vm.currentLanguage.collectAsState()
+    val allHistory by vm.scanHistory.collectAsState()
+    val deepfakeHistory = allHistory.filter { it.scannerType.contains("DEEPFAKE", true) || it.scannerType.contains("MEDIA", true) }
 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -424,6 +427,67 @@ fun MediaDeepfakeScanScreen(nav: NavHostController, vm: MainSecurityViewModel) {
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+
+            if (deepfakeHistory.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(AppLocalization.t("Recent Deepfake Scans", currentLang), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        AppLocalization.t("View Full History", currentLang),
+                        color = Cyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable {
+                            vm.setHistoryCategory("DEEPFAKE")
+                            nav.navigate("history")
+                        }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        deepfakeHistory.take(5).forEachIndexed { idx, item ->
+                            val sColor = SentinelRiskColors.getColorForScore(item.securityScore)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        vm.setCurrentScanResult(item)
+                                        nav.navigate("media_result")
+                                    }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Security, contentDescription = null, tint = Cyan, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(item.rawInputReference?.take(28) ?: "AI Media Analysis", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(item.explanation.take(40), color = Muted, fontSize = 11.sp)
+                                }
+                                Surface(
+                                    color = sColor.copy(alpha = 0.16f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, sColor.copy(alpha = 0.5f))
+                                ) {
+                                    Text(AppLocalization.t(item.riskLevel.label, currentLang), color = sColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                }
+                            }
+                            if (idx < deepfakeHistory.take(5).size - 1) {
+                                HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
+                    }
                 }
             }
 

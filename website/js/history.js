@@ -34,6 +34,10 @@ class HistoryController {
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => this.loadHistory(true));
     }
+
+    document.addEventListener('sentinel-language-changed', () => {
+      this.renderTable();
+    });
   }
 
   async loadHistory(showToast = false) {
@@ -94,12 +98,14 @@ class HistoryController {
     });
 
     if (filtered.length === 0) {
+      const emptyTitle = window.t ? window.t("No Scan Records Found") : "No Scan Records Found";
+      const emptyDesc = window.t ? window.t("Run scans from the dashboard or your linked Android phone to see synced logs here.") : "Run scans from the dashboard or your linked Android phone to see synced logs here.";
       this.tableBody.innerHTML = `
         <tr>
           <td colspan="6" style="text-align:center;padding:3rem;color:var(--text-sub);">
             <div style="font-size:2rem;margin-bottom:0.5rem;">📂</div>
-            <p style="color:var(--text-main);font-weight:600;">No Scan Records Found</p>
-            <p style="font-size:0.8rem;">Run scans from the dashboard or your linked Android phone to see synced logs here.</p>
+            <p style="color:var(--text-main);font-weight:600;">${emptyTitle}</p>
+            <p style="font-size:0.8rem;">${emptyDesc}</p>
           </td>
         </tr>
       `;
@@ -113,6 +119,8 @@ class HistoryController {
       const devIcon = isWeb ? '💻' : '📱';
       const devTagCls = isWeb ? 'web' : 'android';
       const dateStr = s.created_at ? new Date(s.created_at).toLocaleString() : 'Recent';
+      const localizedType = window.t ? (window.t(s.scan_type) || s.scan_type.replace('_', ' ')) : s.scan_type.replace('_', ' ');
+      const localizedRisk = window.t ? (window.t(s.risk_level) || s.risk_level) : s.risk_level;
 
       return `
         <tr onclick="window.historyController.inspectScan('${s.id}')">
@@ -124,14 +132,14 @@ class HistoryController {
           </td>
           <td>
             <span style="font-weight:600;font-size:0.85rem;color:var(--text-main);">
-              ${s.scan_type.replace('_', ' ')}
+              ${localizedType}
             </span>
           </td>
           <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             <code style="font-size:0.8rem;color:var(--cyan-primary);">${s.target_identifier || 'Payload Target'}</code>
           </td>
           <td>
-            <span class="badge-level ${badgeCls}">${s.risk_level}</span>
+            <span class="badge-level ${badgeCls}">${localizedRisk}</span>
           </td>
           <td>
             <span style="font-weight:700;color:${s.risk_level === 'SAFE' ? '#34d399' : '#f87171'};font-family:var(--font-mono);">
@@ -152,50 +160,53 @@ class HistoryController {
       const scan = await window.api.getScanById(scanId);
       const isSafe = scan.risk_level === 'SAFE';
       const badgeCls = isSafe ? 'safe' : (scan.risk_level === 'SUSPICIOUS' ? 'suspicious' : 'critical');
+      const localizedType = window.t ? (window.t(scan.scanner_type) || scan.scanner_type.replace('_', ' ')) : scan.scanner_type.replace('_', ' ');
+      const localizedRisk = window.t ? (window.t(scan.risk_level) || scan.risk_level) : scan.risk_level;
+      const localizedExplanation = window.translateReport ? window.translateReport(scan.explanation || scan.summary) : (scan.explanation || scan.summary);
 
       this.modalContent.innerHTML = `
         <div class="verdict-banner ${badgeCls}" style="margin-bottom:1.5rem;">
           <div class="verdict-icon-box" style="font-size:1.5rem;">${isSafe ? '✅' : '⚠️'}</div>
           <div class="verdict-text-content">
-            <h3>${scan.scanner_type.replace('_', ' ')}: ${scan.risk_level}</h3>
-            <p>${scan.explanation || scan.summary}</p>
+            <h3>${localizedType}: ${localizedRisk}</h3>
+            <p>${localizedExplanation}</p>
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
           <div class="feed-item" style="text-align:center;flex-direction:column;padding:0.75rem;">
-            <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Security Score</span>
+            <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Security Score") : "Security Score"}</span>
             <span style="font-size:1.6rem;font-weight:800;color:${isSafe ? '#34d399' : '#f87171'}">${scan.security_score}/100</span>
           </div>
           <div class="feed-item" style="text-align:center;flex-direction:column;padding:0.75rem;">
-            <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Model Confidence</span>
+            <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Model Confidence") : "Model Confidence"}</span>
             <span style="font-size:1.4rem;font-weight:700;color:var(--cyan-primary);">${Math.round(scan.confidence * 100)}%</span>
           </div>
           <div class="feed-item" style="text-align:center;flex-direction:column;padding:0.75rem;">
-            <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Classification</span>
-            <span class="badge-level ${badgeCls}" style="margin-top:0.35rem;">${scan.risk_level}</span>
+            <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Threat Classification") : "Classification"}</span>
+            <span class="badge-level ${badgeCls}" style="margin-top:0.35rem;">${localizedRisk}</span>
           </div>
         </div>
 
         <div class="signals-container">
-          <h4 class="signals-title">Observed Threat Signals (${(scan.signals || []).length})</h4>
+          <h4 class="signals-title">${window.t ? window.t("Extracted Forensic Signals") : "Observed Threat Signals"} (${(scan.signals || []).length})</h4>
           ${(scan.signals || []).length > 0 ? (scan.signals || []).map(s => `
             <div class="signal-chip ${s.severity.toLowerCase()}">
               <div class="signal-chip-header">
                 <span class="signal-name">${s.name}</span>
-                <span class="badge-level ${s.severity.toLowerCase()}">${s.severity}</span>
+                <span class="badge-level ${s.severity.toLowerCase()}">${window.t ? window.t(s.severity) : s.severity}</span>
               </div>
-              <p class="signal-desc">${s.description}</p>
+              <p class="signal-desc">${window.translateReport ? window.translateReport(s.description) : s.description}</p>
               ${s.evidence_value ? `<div class="signal-ev">Evidence: ${s.evidence_value}</div>` : ''}
             </div>
-          `).join('') : '<p style="color:var(--text-sub);font-size:0.85rem;">No malicious indicators detected. Clean scan.</p>'}
+          `).join('') : `<p style="color:var(--text-sub);font-size:0.85rem;">${window.t ? window.t("No active threats detected. Run security scans to inspect targets and verify endpoint health.") : "No malicious indicators detected. Clean scan."}</p>`}
         </div>
 
         ${(scan.recommended_actions || []).length > 0 ? `
           <div style="background:rgba(255,255,255,0.025);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:1rem;margin:1.25rem 0;">
-            <h4 style="font-size:0.85rem;color:var(--text-main);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">Recommended Actions</h4>
+            <h4 style="font-size:0.85rem;color:var(--text-main);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">${window.t ? window.t("Recommended Security Actions") : "Recommended Actions"}</h4>
             <ul style="font-size:0.85rem;color:var(--text-muted);margin-left:1.2rem;line-height:1.5;">
-              ${scan.recommended_actions.map(r => `<li>${r}</li>`).join('')}
+              ${scan.recommended_actions.map(r => `<li>${window.translateReport ? window.translateReport(r) : r}</li>`).join('')}
             </ul>
           </div>
         ` : ''}

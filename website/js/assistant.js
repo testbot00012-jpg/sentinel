@@ -54,8 +54,8 @@ class AssistantController {
     this.inputField.value = '';
     this.appendMessage('user', text);
 
-    const lang = this.langSelect ? this.langSelect.value : 'en';
-    const typingId = this.showTypingIndicator();
+    const lang = localStorage.getItem('sentinel_preferred_lang') || (this.langSelect ? this.langSelect.value : 'en');
+    const typingId = this.showTypingIndicator(lang);
 
     try {
       let resp;
@@ -98,17 +98,21 @@ class AssistantController {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
 
-  showTypingIndicator() {
+  showTypingIndicator(lang = 'en') {
     const id = 'typing-' + Date.now();
     const row = document.createElement('div');
     row.className = 'chat-bubble-row assistant';
     row.id = id;
 
+    let msg = "Sentinel Neural BM25 RAG analyzing query...";
+    if (lang === 'hi') msg = "सेंटिनल न्यूरल बीएम25 आरएजी विश्लेषण कर रहा है...";
+    else if (lang === 'te') msg = "సెంటినెల్ న్యూరల్ BM25 RAG విశ్లేషిస్తోంది...";
+
     row.innerHTML = `
       <div class="chat-avatar assistant">🛡️</div>
       <div class="chat-bubble" style="display:flex;align-items:center;gap:6px;padding:12px 18px;">
         <span class="sync-icon-spin" style="font-size:1rem;">⚡</span>
-        <span style="font-size:0.85rem;color:var(--text-muted);">Sentinel Neural RAG analyzing query...</span>
+        <span style="font-size:0.85rem;color:var(--text-muted);">${msg}</span>
       </div>
     `;
 

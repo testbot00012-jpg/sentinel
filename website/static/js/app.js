@@ -22,6 +22,12 @@ class SentinelApp {
       }
     });
 
+    // Apply active language across all DOM elements
+    if (window.applyGlobalLanguage) {
+      const savedLang = localStorage.getItem('sentinel_preferred_lang') || 'en';
+      window.applyGlobalLanguage(savedLang);
+    }
+
     // Initialize Auth state on all pages
     if (window.authController) {
       window.authController.init();
@@ -67,12 +73,11 @@ class SentinelApp {
 
     langSelect.addEventListener('change', (e) => {
       const lang = e.target.value;
-      localStorage.setItem('sentinel_preferred_lang', lang);
-
-      const smsLang = document.getElementById('sms-lang-select');
-      const chatLang = document.getElementById('chat-lang-select');
-      if (smsLang) smsLang.value = lang;
-      if (chatLang) chatLang.value = lang;
+      if (window.applyGlobalLanguage) {
+        window.applyGlobalLanguage(lang);
+      } else {
+        localStorage.setItem('sentinel_preferred_lang', lang);
+      }
 
       const langNames = { en: 'English', hi: 'हिन्दी (Hindi)', te: 'తెలుగు (Telugu)' };
       this.toast(`Language set to ${langNames[lang] || lang}`, 'info');

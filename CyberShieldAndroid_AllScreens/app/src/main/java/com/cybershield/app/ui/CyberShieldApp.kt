@@ -1064,6 +1064,9 @@ private fun MessageAnalysisScreen(
     result: SecurityResult?,
     vm: MainSecurityViewModel
 ) {
+    val currentLang by vm.currentLanguage.collectAsState()
+    val allHistory by vm.scanHistory.collectAsState()
+    val smsHistory = allHistory.filter { it.scannerType.contains("MESSAGE", true) || it.scannerType.contains("SMS", true) }
     var inlineInput by remember { mutableStateOf("") }
     var isInputExpanded by remember { mutableStateOf(result == null) }
     val isScanning by vm.isScanning.collectAsState()
@@ -1077,7 +1080,7 @@ private fun MessageAnalysisScreen(
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            FigmaSubHeader("Message analysis", "SMS / WhatsApp threat inspection", nav)
+            FigmaSubHeader(AppLocalization.t("Message analysis", currentLang), AppLocalization.t("Inspect SMS for fraud", currentLang), nav)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -1393,6 +1396,57 @@ private fun MessageAnalysisScreen(
                 }
             }
         }
+
+        // Dedicated Recent SMS / Message Scans (Particular History)
+        if (smsHistory.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(AppLocalization.t("Recent SMS / Message Scans", currentLang), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        AppLocalization.t("View Full History", currentLang),
+                        color = Cyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable {
+                            vm.setHistoryCategory("SMS")
+                            nav.navigate("history")
+                        }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        smsHistory.take(5).forEachIndexed { idx, item ->
+                            val sColor = SentinelRiskColors.getColorForScore(item.securityScore)
+                            HistoryItemRow(
+                                title = item.rawInputReference?.take(28) ?: "SMS Inspection",
+                                time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(item.timestamp)),
+                                status = AppLocalization.t(item.riskLevel.label, currentLang),
+                                statusColor = sColor,
+                                statusBg = sColor.copy(alpha = 0.16f),
+                                icon = Icons.Default.AutoAwesome,
+                                onClick = {
+                                    vm.setCurrentScanResult(item)
+                                }
+                            )
+                            if (idx < smsHistory.take(5).size - 1) {
+                                HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     ScanAiSideFab(
@@ -1417,6 +1471,9 @@ private fun UrlProtectionScreen(
     result: SecurityResult?,
     vm: MainSecurityViewModel
 ) {
+    val currentLang by vm.currentLanguage.collectAsState()
+    val allHistory by vm.scanHistory.collectAsState()
+    val urlHistory = allHistory.filter { it.scannerType.contains("URL", true) }
     var inlineUrlInput by remember { mutableStateOf("") }
     var isInputExpanded by remember { mutableStateOf(result == null) }
     val isScanning by vm.isScanning.collectAsState()
@@ -1430,7 +1487,7 @@ private fun UrlProtectionScreen(
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            FigmaSubHeader("URL protection", "Preview risky destinations", nav)
+            FigmaSubHeader(AppLocalization.t("URL protection", currentLang), AppLocalization.t("Preview risky destinations", currentLang), nav)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -1710,6 +1767,57 @@ private fun UrlProtectionScreen(
                 }
             }
         }
+
+        // Dedicated Recent URL Scans (Particular History)
+        if (urlHistory.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(AppLocalization.t("Recent URL Scans", currentLang), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        AppLocalization.t("View Full History", currentLang),
+                        color = Cyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable {
+                            vm.setHistoryCategory("URL")
+                            nav.navigate("history")
+                        }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        urlHistory.take(5).forEachIndexed { idx, item ->
+                            val sColor = SentinelRiskColors.getColorForScore(item.securityScore)
+                            HistoryItemRow(
+                                title = item.rawInputReference ?: "URL Scan",
+                                time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(item.timestamp)),
+                                status = AppLocalization.t(item.riskLevel.label, currentLang),
+                                statusColor = sColor,
+                                statusBg = sColor.copy(alpha = 0.16f),
+                                icon = Icons.Default.Shield,
+                                onClick = {
+                                    vm.setCurrentScanResult(item)
+                                }
+                            )
+                            if (idx < urlHistory.take(5).size - 1) {
+                                HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     ScanAiSideFab(
@@ -1734,6 +1842,9 @@ private fun QrPaymentScreen(
     result: SecurityResult?,
     vm: MainSecurityViewModel
 ) {
+    val currentLang by vm.currentLanguage.collectAsState()
+    val allHistory by vm.scanHistory.collectAsState()
+    val qrHistory = allHistory.filter { it.scannerType.contains("QR", true) || it.scannerType.contains("PAYMENT", true) }
     val context = LocalContext.current
     var showAiOverlay by remember { mutableStateOf(false) }
     var isInputExpanded by remember { mutableStateOf(result == null) }
@@ -1756,7 +1867,7 @@ private fun QrPaymentScreen(
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             item {
-                FigmaSubHeader("QR Safety Inspector", "Check if QR code is safe or scam", nav)
+                FigmaSubHeader(AppLocalization.t("QR & Payment Safety", currentLang), AppLocalization.t("Inspect payment codes & screenshots", currentLang), nav)
                 Spacer(Modifier.height(4.dp))
             }
 
@@ -2008,7 +2119,57 @@ private fun QrPaymentScreen(
                     }
                 }
             }
+        // Dedicated Recent QR & Payment Scans (Particular History)
+        if (qrHistory.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(AppLocalization.t("Recent QR & Payment Scans", currentLang), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        AppLocalization.t("View Full History", currentLang),
+                        color = Cyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable {
+                            vm.setHistoryCategory("QR")
+                            nav.navigate("history")
+                        }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Line),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        qrHistory.take(5).forEachIndexed { idx, item ->
+                            val sColor = SentinelRiskColors.getColorForScore(item.securityScore)
+                            HistoryItemRow(
+                                title = item.rawInputReference ?: "QR / Payment Scan",
+                                time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(item.timestamp)),
+                                status = AppLocalization.t(item.riskLevel.label, currentLang),
+                                statusColor = sColor,
+                                statusBg = sColor.copy(alpha = 0.16f),
+                                icon = Icons.Default.QrCodeScanner,
+                                onClick = {
+                                    vm.setCurrentScanResult(item)
+                                }
+                            )
+                            if (idx < qrHistory.take(5).size - 1) {
+                                HorizontalDivider(color = Line.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
 
         ScanAiSideFab(
             onClick = { showAiOverlay = true },
@@ -3518,11 +3679,21 @@ private fun ProtectedMemberCard(name: String, status: String, statusColor: Color
 
 @Composable
 private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel) {
+    val currentLang by vm.currentLanguage.collectAsState()
+    val activeCategory by vm.selectedHistoryCategory.collectAsState()
     var selectedFilter by remember { mutableStateOf("ALL") }
     var searchQuery by remember { mutableStateOf("") }
     val history by vm.scanHistory.collectAsState()
 
     val filteredHistory = history.filter { item ->
+        val matchesCategory = when (activeCategory) {
+            "URL" -> item.scannerType.contains("URL", true)
+            "SMS" -> item.scannerType.contains("MESSAGE", true) || item.scannerType.contains("SMS", true)
+            "QR" -> item.scannerType.contains("QR", true) || item.scannerType.contains("PAYMENT", true)
+            "DEEPFAKE" -> item.scannerType.contains("DEEPFAKE", true) || item.scannerType.contains("MEDIA", true)
+            "APPS" -> item.scannerType.contains("APK", true) || item.scannerType.contains("APP", true) || item.scannerType.contains("DEVICE", true)
+            else -> true
+        }
         val matchesFilter = when (selectedFilter) {
             "HIGH RISK" -> item.riskLevel == RiskLevel.HIGH_RISK || item.riskLevel == RiskLevel.CRITICAL
             "SAFE" -> item.riskLevel == RiskLevel.SAFE
@@ -3530,8 +3701,9 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
         }
         val matchesSearch = searchQuery.isBlank() ||
                 (item.rawInputReference?.contains(searchQuery, ignoreCase = true) == true) ||
-                item.scannerType.contains(searchQuery, ignoreCase = true)
-        matchesFilter && matchesSearch
+                item.scannerType.contains(searchQuery, ignoreCase = true) ||
+                item.explanation.contains(searchQuery, ignoreCase = true)
+        matchesCategory && matchesFilter && matchesSearch
     }
 
     LazyColumn(
@@ -3542,8 +3714,8 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
     ) {
         item {
             FigmaHeader(
-                title = "History",
-                subtitle = "Scans, incidents & evidence",
+                title = AppLocalization.t("History", currentLang),
+                subtitle = AppLocalization.t("Scans, incidents & evidence", currentLang),
                 nav = nav,
                 showBell = true
             )
@@ -3569,17 +3741,53 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                         modifier = Modifier.weight(1f).padding(vertical = 10.dp),
                         decorationBox = { inner ->
                             if (searchQuery.isEmpty()) {
-                                Text("Search scans, URLs, incidents...", color = Muted, fontSize = 13.sp)
+                                Text(AppLocalization.t("Search scans, URLs, incidents...", currentLang), color = Muted, fontSize = 13.sp)
                             }
                             inner()
                         }
                     )
                 }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
         }
 
-        // Filter chips
+        // Category Filter Chips (URL, SMS, QR, Deepfake, Apps)
+        item {
+            val categories = listOf(
+                "ALL" to AppLocalization.t("ALL", currentLang),
+                "URL" to AppLocalization.t("URL PHISHING", currentLang),
+                "SMS" to AppLocalization.t("SMS SCAM", currentLang),
+                "QR" to AppLocalization.t("QR & PAYMENT", currentLang),
+                "DEEPFAKE" to AppLocalization.t("DEEPFAKE VISION", currentLang),
+                "APPS" to AppLocalization.t("APPS & AUDIT", currentLang)
+            )
+            androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(categories.size) { idx ->
+                    val (catKey, catLabel) = categories[idx]
+                    val isSelected = activeCategory == catKey
+                    Surface(
+                        color = if (isSelected) Cyan.copy(alpha = 0.2f) else CardBg,
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, if (isSelected) Cyan else Line),
+                        modifier = Modifier.clickable { vm.setHistoryCategory(catKey) }
+                    ) {
+                        Text(
+                            catLabel,
+                            color = if (isSelected) Cyan else Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // Threat Risk Level filter chips
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(
@@ -3589,7 +3797,7 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     modifier = Modifier.clickable { selectedFilter = "ALL" }
                 ) {
                     Text(
-                        "ALL (${history.size})",
+                        "${AppLocalization.t("ALL", currentLang)} (${filteredHistory.size})",
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -3604,7 +3812,7 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     modifier = Modifier.clickable { selectedFilter = "HIGH RISK" }
                 ) {
                     Text(
-                        "HIGH RISK",
+                        AppLocalization.t("HIGH RISK", currentLang),
                         color = Color(0xFFFF5252),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -3619,7 +3827,7 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     modifier = Modifier.clickable { selectedFilter = "SAFE" }
                 ) {
                     Text(
-                        "SAFE",
+                        AppLocalization.t("SAFE", currentLang),
                         color = Color(0xFF00E676),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -3632,7 +3840,7 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
 
         // Recent activity section
         item {
-            Text("Recent activity", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(AppLocalization.t("Recent activity", currentLang), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(Modifier.height(10.dp))
             if (filteredHistory.isEmpty()) {
                 Card(
@@ -3647,9 +3855,9 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     ) {
                         Icon(Icons.Default.CropFree, null, tint = Cyan, modifier = Modifier.size(36.dp))
                         Spacer(Modifier.height(10.dp))
-                        Text("No Scans in History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(AppLocalization.t("No Scans in History", currentLang), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text(
-                            "Scan an SMS, URL link, QR payload, or run a live device posture audit to log verified security evidence.",
+                            AppLocalization.t("Scan an SMS, URL link, QR payload, or run a live device posture audit to log verified security evidence.", currentLang),
                             color = Muted,
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
@@ -3663,7 +3871,7 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                             colors = ButtonDefaults.buttonColors(containerColor = Cyan),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text("Run Live Device Audit", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(AppLocalization.t("Run Live Device Audit", currentLang), color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
                 }
@@ -3679,10 +3887,11 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                             val sColor = SentinelRiskColors.getColorForScore(scan.securityScore)
                             val sBg = sColor.copy(alpha = 0.16f)
                             val icon = when {
-                                scan.scannerType.contains("MESSAGE", true) -> Icons.Default.AutoAwesome
+                                scan.scannerType.contains("MESSAGE", true) || scan.scannerType.contains("SMS", true) -> Icons.Default.AutoAwesome
                                 scan.scannerType.contains("URL", true) -> Icons.Default.Shield
                                 scan.scannerType.contains("QR", true) -> Icons.Default.QrCodeScanner
                                 scan.scannerType.contains("PAYMENT", true) -> Icons.Default.Payments
+                                scan.scannerType.contains("DEEPFAKE", true) || scan.scannerType.contains("MEDIA", true) -> Icons.Default.Face
                                 scan.scannerType.contains("DEVICE", true) -> Icons.Default.PhoneAndroid
                                 else -> Icons.Default.GridView
                             }
@@ -3690,15 +3899,17 @@ private fun ScanHistoryScreen(nav: NavHostController, vm: MainSecurityViewModel)
                             HistoryItemRow(
                                 title = scan.rawInputReference?.take(28) ?: scan.scannerType.replace("_", " "),
                                 time = timeFormatted,
-                                status = scan.riskLevel.label,
+                                status = AppLocalization.t(scan.riskLevel.label, currentLang),
                                 statusColor = sColor,
                                 statusBg = sBg,
                                 icon = icon,
                                 onClick = {
+                                    vm.setCurrentScanResult(scan)
                                     when {
-                                        scan.scannerType.contains("MESSAGE", true) -> nav.navigate("message_result")
+                                        scan.scannerType.contains("MESSAGE", true) || scan.scannerType.contains("SMS", true) -> nav.navigate("message_result")
                                         scan.scannerType.contains("URL", true) -> nav.navigate("url_protection")
                                         scan.scannerType.contains("QR", true) || scan.scannerType.contains("PAYMENT", true) -> nav.navigate("qr_payment")
+                                        scan.scannerType.contains("DEEPFAKE", true) || scan.scannerType.contains("MEDIA", true) -> nav.navigate("media_result")
                                         else -> nav.navigate("scan_report")
                                     }
                                 }

@@ -5,10 +5,22 @@
 
 class ScannersController {
   constructor() {
+    this.lastUrlResult = null;
+    this.lastMessageResult = null;
+    this.lastDeepfakeResult = null;
+    this.lastQrResult = null;
+
     this.bindUrlScanner();
     this.bindMessageScanner();
     this.bindDeepfakeScanner();
     this.bindQrScanner();
+
+    document.addEventListener('sentinel-language-changed', () => {
+      if (this.lastUrlResult) this.renderUrlResult(this.lastUrlResult.res, this.lastUrlResult.url);
+      if (this.lastMessageResult) this.renderMessageResult(this.lastMessageResult);
+      if (this.lastDeepfakeResult) this.renderDeepfakeResult(this.lastDeepfakeResult);
+      if (this.lastQrResult) this.renderQrResult(this.lastQrResult);
+    });
   }
 
   // ==========================================
@@ -61,6 +73,7 @@ class ScannersController {
   }
 
   renderUrlResult(res, url) {
+    this.lastUrlResult = { res, url };
     const box = document.getElementById('result-url-box');
     const isDnsFailure = (res.signals || []).some(s => s.type === 'DNS_RESOLUTION_FAILURE');
     const isSafe = res.risk_level === 'SAFE';
@@ -68,41 +81,43 @@ class ScannersController {
 
     let verdictClass = isSafe ? 'safe' : (isCritical ? 'critical' : 'suspicious');
     let verdictIcon = isSafe ? '✅' : (isDnsFailure ? '🚫' : '⚠️');
-    let verdictTitle = isSafe ? 'SAFE & VERIFIED DOMAIN' : (isDnsFailure ? 'URL DOES NOT EXIST / UNREACHABLE' : 'HIGH RISK PHISHING THREAT');
+    let rawTitle = isSafe ? 'SAFE & VERIFIED DOMAIN' : (isDnsFailure ? 'URL DOES NOT EXIST / UNREACHABLE' : 'HIGH RISK PHISHING THREAT');
+    let verdictTitle = window.t ? window.t(rawTitle) : rawTitle;
+    let explanation = window.translateReport ? window.translateReport(res.explanation) : res.explanation;
 
     box.innerHTML = `
       <div class="verdict-banner ${verdictClass}">
         <div class="verdict-icon-box" style="font-size:1.4rem;">${verdictIcon}</div>
         <div class="verdict-text-content">
           <h3>${verdictTitle}</h3>
-          <p>${res.explanation}</p>
+          <p>${explanation}</p>
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1.25rem;">
         <div class="feed-item" style="text-align:center;flex-direction:column;align-items:center;padding:0.75rem;">
-          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Security Score</span>
+          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Security Score") : "Security Score"}</span>
           <span style="font-size:1.5rem;font-weight:800;color:${isSafe ? '#34d399' : '#f87171'}">${res.security_score || (100 - res.risk_score)}/100</span>
         </div>
         <div class="feed-item" style="text-align:center;flex-direction:column;align-items:center;padding:0.75rem;">
-          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Threat Level</span>
-          <span class="badge-level ${verdictClass}" style="margin-top:0.25rem;">${res.risk_level}</span>
+          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Threat Level") : "Threat Level"}</span>
+          <span class="badge-level ${verdictClass}" style="margin-top:0.25rem;">${window.t ? window.t(res.risk_level) : res.risk_level}</span>
         </div>
         <div class="feed-item" style="text-align:center;flex-direction:column;align-items:center;padding:0.75rem;">
-          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">DNS Resolution</span>
-          <span style="font-size:0.85rem;font-weight:700;color:${isDnsFailure ? '#f87171' : '#34d399'};margin-top:0.25rem;">${isDnsFailure ? 'FAILED / NO HOST' : 'ACTIVE IP'}</span>
+          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("DNS Resolution") : "DNS Resolution"}</span>
+          <span style="font-size:0.85rem;font-weight:700;color:${isDnsFailure ? '#f87171' : '#34d399'};margin-top:0.25rem;">${isDnsFailure ? (window.t ? window.t('FAILED / NO HOST') : 'FAILED / NO HOST') : 'ACTIVE IP'}</span>
         </div>
       </div>
 
       <div class="signals-container">
-        <h4 class="signals-title">Extracted Forensic Signals (${(res.signals || []).length})</h4>
+        <h4 class="signals-title">${window.t ? window.t("Extracted Forensic Signals") : "Extracted Forensic Signals"} (${(res.signals || []).length})</h4>
         ${(res.signals || []).map(s => `
           <div class="signal-chip ${s.severity.toLowerCase()}">
             <div class="signal-chip-header">
               <span class="signal-name">${s.name}</span>
-              <span class="badge-level ${s.severity.toLowerCase()}">${s.severity}</span>
+              <span class="badge-level ${s.severity.toLowerCase()}">${window.t ? window.t(s.severity) : s.severity}</span>
             </div>
-            <p class="signal-desc">${s.description}</p>
+            <p class="signal-desc">${window.translateReport ? window.translateReport(s.description) : s.description}</p>
             ${s.evidence_value ? `<div class="signal-ev">Evidence: ${s.evidence_value}</div>` : ''}
           </div>
         `).join('')}
@@ -111,7 +126,7 @@ class ScannersController {
       <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:0.75rem;color:var(--text-sub);">Model: ${res.model_name} v${res.model_version}</span>
         <button class="btn btn-outline-cyan btn-sm" onclick="window.assistantController.discussScan('${res.scan_id}')">
-          💬 Ask AI Assistant About This
+          ${window.t ? window.t("Ask AI Assistant") : "💬 Ask AI Assistant"}
         </button>
       </div>
     `;
@@ -173,41 +188,44 @@ class ScannersController {
   }
 
   renderMessageResult(res) {
+    this.lastMessageResult = res;
     const box = document.getElementById('result-sms-box');
     const isSafe = res.risk_level === 'SAFE';
     const isCritical = res.risk_level === 'CRITICAL' || res.risk_level === 'HIGH_RISK';
     const verdictClass = isSafe ? 'safe' : (isCritical ? 'critical' : 'suspicious');
-    const verdictTitle = isSafe ? 'VERIFIED LEGITIMATE MESSAGE' : 'MALICIOUS SCAM OR SOCIAL ENGINEERING';
+    const rawTitle = isSafe ? 'VERIFIED LEGITIMATE MESSAGE' : 'MALICIOUS SCAM OR SOCIAL ENGINEERING';
+    const verdictTitle = window.t ? window.t(rawTitle) : rawTitle;
+    const explanation = window.translateReport ? window.translateReport(res.explanation) : res.explanation;
 
     box.innerHTML = `
       <div class="verdict-banner ${verdictClass}">
         <div class="verdict-icon-box" style="font-size:1.4rem;">${isSafe ? '🛡️' : '🚨'}</div>
         <div class="verdict-text-content">
           <h3>${verdictTitle}</h3>
-          <p>${res.explanation}</p>
+          <p>${explanation}</p>
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem;margin-bottom:1.25rem;">
         <div class="feed-item" style="text-align:center;flex-direction:column;align-items:center;padding:0.75rem;">
-          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Safety Index</span>
+          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Safety Index") : "Safety Index"}</span>
           <span style="font-size:1.5rem;font-weight:800;color:${isSafe ? '#34d399' : '#f87171'}">${res.security_score || (100 - res.risk_score)}/100</span>
         </div>
         <div class="feed-item" style="text-align:center;flex-direction:column;align-items:center;padding:0.75rem;">
-          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Threat Classification</span>
-          <span class="badge-level ${verdictClass}" style="margin-top:0.25rem;">${res.risk_level}</span>
+          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Threat Classification") : "Threat Classification"}</span>
+          <span class="badge-level ${verdictClass}" style="margin-top:0.25rem;">${window.t ? window.t(res.risk_level) : res.risk_level}</span>
         </div>
       </div>
 
       <div class="signals-container">
-        <h4 class="signals-title">Linguistic & Semantic Triggers (${(res.signals || []).length})</h4>
+        <h4 class="signals-title">${window.t ? window.t("Linguistic & Semantic Triggers") : "Linguistic & Semantic Triggers"} (${(res.signals || []).length})</h4>
         ${(res.signals || []).map(s => `
           <div class="signal-chip ${s.severity.toLowerCase()}">
             <div class="signal-chip-header">
               <span class="signal-name">${s.name}</span>
-              <span class="badge-level ${s.severity.toLowerCase()}">${s.severity}</span>
+              <span class="badge-level ${s.severity.toLowerCase()}">${window.t ? window.t(s.severity) : s.severity}</span>
             </div>
-            <p class="signal-desc">${s.description}</p>
+            <p class="signal-desc">${window.translateReport ? window.translateReport(s.description) : s.description}</p>
           </div>
         `).join('')}
       </div>
@@ -215,7 +233,7 @@ class ScannersController {
       <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:0.75rem;color:var(--text-sub);">NLP Engine: Multilingual Transformer</span>
         <button class="btn btn-outline-cyan btn-sm" onclick="window.assistantController.discussScan('${res.scan_id}')">
-          💬 Ask AI Assistant
+          ${window.t ? window.t("Ask AI Assistant") : "💬 Ask AI Assistant"}
         </button>
       </div>
     `;
@@ -399,44 +417,47 @@ class ScannersController {
   }
 
   renderDeepfakeResult(res) {
+    this.lastDeepfakeResult = res;
     const box = document.getElementById('result-deepfake-box');
     const isSafe = res.risk_level === 'SAFE';
     const verdictClass = isSafe ? 'safe' : 'critical';
-    const verdictTitle = isSafe ? 'GENUINE / CAMERA AUTHENTIC' : 'SYNTHETIC AI GENERATED / HIGH RISK';
+    const rawTitle = isSafe ? 'GENUINE / CAMERA AUTHENTIC' : 'SYNTHETIC AI GENERATED / HIGH RISK';
+    const verdictTitle = window.t ? window.t(rawTitle) : rawTitle;
+    const explanation = window.translateReport ? window.translateReport(res.explanation) : res.explanation;
 
     box.innerHTML = `
       <div class="verdict-banner ${verdictClass}">
         <div class="verdict-icon-box" style="font-size:1.4rem;">${isSafe ? '📸' : '🤖'}</div>
         <div class="verdict-text-content">
           <h3>${verdictTitle}</h3>
-          <p>${res.explanation}</p>
+          <p>${explanation}</p>
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1.25rem;">
         <div class="feed-item" style="text-align:center;flex-direction:column;align-items:center;padding:0.75rem;">
-          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Forensic Score</span>
+          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Forensic Score") : "Forensic Score"}</span>
           <span style="font-size:1.5rem;font-weight:800;color:${isSafe ? '#34d399' : '#f87171'}">${res.security_score || (100 - res.risk_score)}/100</span>
         </div>
         <div class="feed-item" style="text-align:center;flex-direction:column;align-items:center;padding:0.75rem;">
-          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">AI Probability</span>
+          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("AI Probability") : "AI Probability"}</span>
           <span style="font-size:1.3rem;font-weight:700;color:${isSafe ? '#34d399' : '#f87171'}">${isSafe ? '< 5%' : '94.8%'}</span>
         </div>
         <div class="feed-item" style="text-align:center;flex-direction:column;align-items:center;padding:0.75rem;">
-          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">Sensor PRNU</span>
+          <span style="font-size:0.72rem;color:var(--text-sub);text-transform:uppercase;">${window.t ? window.t("Sensor PRNU") : "Sensor PRNU"}</span>
           <span style="font-size:0.85rem;font-weight:700;color:${isSafe ? '#34d399' : '#f87171'};margin-top:0.25rem;">${isSafe ? 'CMOS NOISE PRESENT' : 'SYNTHETIC SMOOTHING'}</span>
         </div>
       </div>
 
       <div class="signals-container">
-        <h4 class="signals-title">Vision Forensics Radar (${(res.signals || []).length})</h4>
+        <h4 class="signals-title">${window.t ? window.t("Vision Forensics Radar") : "Vision Forensics Radar"} (${(res.signals || []).length})</h4>
         ${(res.signals || []).map(s => `
           <div class="signal-chip ${s.severity.toLowerCase()}">
             <div class="signal-chip-header">
               <span class="signal-name">${s.name}</span>
-              <span class="badge-level ${s.severity.toLowerCase()}">${s.severity}</span>
+              <span class="badge-level ${s.severity.toLowerCase()}">${window.t ? window.t(s.severity) : s.severity}</span>
             </div>
-            <p class="signal-desc">${s.description}</p>
+            <p class="signal-desc">${window.translateReport ? window.translateReport(s.description) : s.description}</p>
             ${s.evidence_value ? `<div class="signal-ev">Evidence: ${s.evidence_value}</div>` : ''}
           </div>
         `).join('')}
@@ -445,7 +466,7 @@ class ScannersController {
       <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:0.75rem;color:var(--text-sub);">Ensemble: PRNU Filter + Latent FFT Residuals</span>
         <button class="btn btn-outline-cyan btn-sm" onclick="window.assistantController.discussScan('${res.scan_id}')">
-          💬 Ask AI Assistant
+          ${window.t ? window.t("Ask AI Assistant") : "💬 Ask AI Assistant"}
         </button>
       </div>
     `;
@@ -531,26 +552,24 @@ class ScannersController {
   }
 
   renderQrResult(res) {
+    this.lastQrResult = res;
     const box = document.getElementById('result-qr-box');
     const isSafe = res.risk_level === 'SAFE';
 
-    // STRICT USER REQUIREMENT:
-    // "in QR scanner just tell me it is safe or not dont give amount and details in the upload photo"
-    // Output ONLY the big SAFE or NOT SAFE / SCAM verdict banner.
     if (isSafe) {
       box.innerHTML = `
         <div class="qr-verdict-giant safe">
           <div style="font-size:3.5rem;">✅</div>
-          <div class="qr-verdict-status-text">SAFE</div>
-          <p class="qr-verdict-subtext">Verified merchant recipient. Destination verified against official registry. No fraudulent redirection or deceptive collect request detected.</p>
+          <div class="qr-verdict-status-text">${window.t ? window.t("SAFE") : "SAFE"}</div>
+          <p class="qr-verdict-subtext">${window.translateReport ? window.translateReport("Verified merchant recipient. Destination verified against official registry. No fraudulent redirection or deceptive collect request detected.") : "Verified merchant recipient. Destination verified against official registry. No fraudulent redirection or deceptive collect request detected."}</p>
         </div>
 
         <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:var(--radius-sm);padding:1.25rem;margin-top:1rem;">
           <h4 style="color:#34d399;font-size:0.95rem;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.5rem;">
-            <span>🛡️</span> Safety Advisory
+            <span>🛡️</span> ${window.t ? window.t("Safety Advisory") : "Safety Advisory"}
           </h4>
           <p style="font-size:0.85rem;color:var(--text-muted);line-height:1.4;">
-            This destination is safe for standard authorized transactions. Always ensure you are initiating payment voluntarily.
+            ${window.translateReport ? window.translateReport("This destination is safe for standard authorized transactions. Always ensure you are initiating payment voluntarily.") : "This destination is safe for standard authorized transactions. Always ensure you are initiating payment voluntarily."}
           </p>
         </div>
       `;
@@ -558,18 +577,18 @@ class ScannersController {
       box.innerHTML = `
         <div class="qr-verdict-giant scam">
           <div style="font-size:3.5rem;">🚨</div>
-          <div class="qr-verdict-status-text">NOT SAFE / SCAM</div>
-          <p class="qr-verdict-subtext">WARNING: Potential payment fraud or unverified peer-to-peer recipient detected. Entering your UPI PIN will DEDUCT money from your account. You NEVER need to enter a UPI PIN to receive money.</p>
+          <div class="qr-verdict-status-text">${window.t ? window.t("NOT SAFE / SCAM") : "NOT SAFE / SCAM"}</div>
+          <p class="qr-verdict-subtext">${window.translateReport ? window.translateReport("WARNING: Potential payment fraud or unverified peer-to-peer recipient detected. Entering your UPI PIN will DEDUCT money from your account. You NEVER need to enter a UPI PIN to receive money.") : "WARNING: Potential payment fraud or unverified peer-to-peer recipient detected. Entering your UPI PIN will DEDUCT money from your account. You NEVER need to enter a UPI PIN to receive money."}</p>
         </div>
 
         <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:var(--radius-sm);padding:1.25rem;margin-top:1rem;">
           <h4 style="color:#f87171;font-size:0.95rem;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.5rem;">
-            <span>⚠️</span> Critical Precautions
+            <span>⚠️</span> ${window.t ? window.t("Critical Precautions") : "Critical Precautions"}
           </h4>
           <ul style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;margin-left:1.2rem;">
-            <li>Do NOT scan or enter your UPI PIN if someone claims they are sending you a refund or buying something from you.</li>
-            <li>You NEVER need to enter your PIN to receive money.</li>
-            <li>Cancel this payment immediately and block the sender.</li>
+            <li>${window.translateReport ? window.translateReport("Do NOT scan or enter your UPI PIN if someone claims they are sending you a refund or buying something from you.") : "Do NOT scan or enter your UPI PIN if someone claims they are sending you a refund or buying something from you."}</li>
+            <li>${window.translateReport ? window.translateReport("You NEVER need to enter your PIN to receive money.") : "You NEVER need to enter your PIN to receive money."}</li>
+            <li>${window.translateReport ? window.translateReport("Cancel this payment immediately and block the sender.") : "Cancel this payment immediately and block the sender."}</li>
           </ul>
         </div>
       `;

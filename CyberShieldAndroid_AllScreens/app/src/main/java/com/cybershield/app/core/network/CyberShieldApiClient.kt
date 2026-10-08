@@ -259,13 +259,42 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
         }
     }
 
-    suspend fun chatAssistant(query: String, contextData: JSONObject? = null): String = withContext(Dispatchers.IO) {
-        val payload = JSONObject().put("message", query)
-        if (contextData != null) payload.put("context_data", contextData)
+    suspend fun chatAssistant(query: String, contextData: JSONObject? = null, language: String = "en"): String = withContext(Dispatchers.IO) {
+        val payload = JSONObject().apply {
+            put("message", query)
+            put("language", language)
+            if (contextData != null) put("context_data", contextData)
+        }
         val result = postJson("/assistant/chat", payload)
-        result.getOrNull()?.optString("response") ?: run {
-            "Sentinel AI Assistant (Local Mode): I can help explain your local device posture. " +
-            "For deep neural network explanations and threat intelligence lookups, please ensure your internet connection is active."
+        result.getOrNull()?.optString("response") ?: getLocalAssistantAnswer(query, language)
+    }
+
+    private fun getLocalAssistantAnswer(query: String, language: String): String {
+        val q = query.lowercase()
+        val isTelugu = language.lowercase().contains("telugu") || language.contains("తెలుగు")
+        val isHindi = language.lowercase().contains("hindi") || language.contains("हिन्दी")
+
+        return when {
+            q.contains("upi") || q.contains("pin") || q.contains("cashback") || q.contains("collect") -> {
+                if (isTelugu) "🛡️ UPI భద్రతా నియమం: మీ బ్యాంక్ ఖాతా నుండి డబ్బు పంపేటప్పుడు (PAY) మాత్రమే మీరు UPI PIN నమోదు చేయాలి. డబ్బు అందుకోవడానికి ఎప్పుడూ UPI PIN నమోదు చేయకూడదు. ఎవరైనా PIN అడిగితే అది 100% మోసం."
+                else if (isHindi) "🛡️ UPI सुरक्षा नियम: आपको केवल पैसे भेजते (PAY) समय ही UPI PIN डालना होता है। पैसे प्राप्त करने या कैशबैक के लिए कभी भी UPI PIN न डालें। ऐसा कोई भी अनुरोध 100% धोखाधड़ी है।"
+                else "🛡️ UPI Defense Rule: You ONLY enter your UPI PIN when PAYING money out. Receiving money or claiming refunds NEVER requires a PIN. Any request asking for your PIN to receive funds is 100% fraudulent."
+            }
+            q.contains("police") || q.contains("cbi") || q.contains("arrest") || q.contains("video call") -> {
+                if (isTelugu) "🚨 డిజిటల్ అరెస్ట్ హెచ్చరిక: చట్టంలో 'డిజిటల్ అరెస్ట్' అనే నిబంధన లేదు. పోలీసులు లేదా CBI ఎప్పుడూ వీడియో కాల్ ద్వారా అరెస్ట్ చేయరు లేదా డబ్బులు అడగరు. వెంటనే 1930 కు కాల్ చేయండి."
+                else if (isHindi) "🚨 डिजिटल अरेस्ट चेतावनी: कानून में 'डिजिटल अरेस्ट' का कोई प्रावधान नहीं है। पुलिस या CBI कभी वीडियो कॉल पर गिरफ्तारी वारंट जारी नहीं करते और न ही पैसे मांगते हैं। तुरंत 1930 पर कॉल करें।"
+                else "🚨 Digital Arrest Alert: There is NO legal provision for 'Digital Arrest'. Police/CBI never conduct trials or demand escrow payments via Skype or WhatsApp video calls. Hang up and call 1930 immediately."
+            }
+            q.contains("1930") || q.contains("complaint") || q.contains("money lost") || q.contains("fraud") -> {
+                if (isTelugu) "📞 సైబర్ క్రైమ్ హెల్ప్‌లైన్: మోసపూరితంగా డబ్బు పోయిన వెంటనే 1930 నంబర్‌కు కాల్ చేయండి లేదా cybercrime.gov.in లో ఫిర్యాదు చేయండి. 3 రోజుల్లో ఫిర్యాదు చేస్తే RBI నిబంధనల ప్రకారం పూర్తి రక్షణ ఉంటుంది."
+                else if (isHindi) "📞 राष्ट्रीय साइबर हेल्पलाइन: यदि धोखाधड़ी से पैसे कट गए हैं, तो तुरंत 1930 पर कॉल करें और cybercrime.gov.in पर रिपोर्ट करें। 3 दिनों के भीतर बैंक को सूचित करने पर RBI के तहत ग्राहक की जीरो लायबिलिटी होती है।"
+                else "📞 Emergency Reporting: Call National Cyber Helpline 1930 immediately to freeze fraudulent transactions. Lodge complaints at https://cybercrime.gov.in. Under RBI rules, reporting within 3 days ensures zero liability."
+            }
+            else -> {
+                if (isTelugu) "సెంటినెల్ AI అసిస్టెంట్: మీ పరికరం మరియు నెట్‌వర్క్ రక్షణలో ఉన్నాయి. అనుమానాస్పద లింకులు లేదా తెలియని APK ఫైళ్లను తెరవవద్దు మరియు రహస్య OTPలను ఎవరితోనూ పంచుకోవద్దు."
+                else if (isHindi) "सेंटिनल एआई सहायक: आपका डिवाइस सुरक्षित है। किसी भी संदिग्ध लिंक या अनजान APK को न खोलें और अपना गुप्त OTP किसी के साथ साझा न करें।"
+                else "Sentinel AI Assistant: Your device is operating under continuous heuristic protection. Keep real-time shields active and never share OTPs or install unverified APK packages."
+            }
         }
     }
 
@@ -323,41 +352,50 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
     }
 
     suspend fun getScanHistory(): Result<List<SecurityResult>> = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("$baseUrl/scans/history")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("Accept", "application/json")
-            authToken?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
-            conn.connectTimeout = 5000
-            conn.readTimeout = 6000
-
-            val code = conn.responseCode
-            if (code in 200..299) {
-                val responseText = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
-                val jsonArray = JSONArray(responseText)
-                val list = mutableListOf<SecurityResult>()
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    val sType = obj.optString("scan_type", "GENERAL")
-                    val parsed = parseSecurityResult(obj, sType)
-                    val target = obj.optString("target_identifier", obj.optString("raw_input_reference", sType))
-                    val summary = obj.optString("summary", parsed.explanation)
-                    val updated = parsed.copy(
-                        scanId = obj.optString("id", obj.optString("scan_id", parsed.scanId)),
-                        explanation = if (parsed.explanation.isBlank() || parsed.explanation == "Scan completed.") summary else parsed.explanation,
-                        rawInputReference = if (parsed.rawInputReference.isNullOrBlank()) target else parsed.rawInputReference,
-                        quickSummary = if (parsed.quickSummary.isNullOrBlank()) summary else parsed.quickSummary
-                    )
-                    list.add(updated)
-                }
-                Result.success(list)
-            } else {
-                Result.failure(Exception("HTTP $code from $url"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
+        val urlsToTry = mutableListOf("$baseUrl/scans/history")
+        if (!baseUrl.contains("10.0.2.2") && !baseUrl.contains("localhost")) {
+            urlsToTry.add("http://10.0.2.2:8000/api/v1/scans/history")
         }
+
+        var lastException: Exception? = null
+        for (targetUrl in urlsToTry) {
+            try {
+                val url = URL(targetUrl)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("Accept", "application/json")
+                authToken?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
+                conn.connectTimeout = 4000
+                conn.readTimeout = 5000
+
+                val code = conn.responseCode
+                if (code in 200..299) {
+                    val responseText = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                    val jsonArray = JSONArray(responseText)
+                    val list = mutableListOf<SecurityResult>()
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        val sType = obj.optString("scan_type", obj.optString("scanner_type", "GENERAL"))
+                        val parsed = parseSecurityResult(obj, sType)
+                        val target = obj.optString("target_identifier", obj.optString("raw_input_reference", sType))
+                        val summary = obj.optString("summary", obj.optString("explanation", parsed.explanation))
+                        val updated = parsed.copy(
+                            scanId = obj.optString("id", obj.optString("scan_id", parsed.scanId)),
+                            explanation = if (parsed.explanation.isBlank() || parsed.explanation == "Scan completed.") summary else parsed.explanation,
+                            rawInputReference = if (parsed.rawInputReference.isNullOrBlank()) target else parsed.rawInputReference,
+                            quickSummary = if (parsed.quickSummary.isNullOrBlank()) summary else parsed.quickSummary
+                        )
+                        list.add(updated)
+                    }
+                    if (list.isNotEmpty() || targetUrl == urlsToTry.last()) {
+                        return@withContext Result.success(list)
+                    }
+                }
+            } catch (e: Exception) {
+                lastException = e
+            }
+        }
+        Result.failure(lastException ?: Exception("Could not reach scan history service"))
     }
 
     suspend fun recordScan(result: SecurityResult): Result<Boolean> = withContext(Dispatchers.IO) {
