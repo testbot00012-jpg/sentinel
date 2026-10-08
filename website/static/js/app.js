@@ -108,9 +108,24 @@ class SentinelApp {
       setTimeout(() => el.remove(), 300);
     }, 3800);
   }
+
+  openScanModal() {
+    const modal = document.getElementById('scan-options-modal');
+    if (modal) {
+      modal.classList.add('open');
+    }
+  }
+
+  closeScanModal() {
+    const modal = document.getElementById('scan-options-modal');
+    if (modal) {
+      modal.classList.remove('open');
+    }
+  }
 }
 
 window.app = new SentinelApp();
+window.sentinelApp = window.app;
 window.toast = (msg, type) => window.app.toast(msg, type);
 
 document.addEventListener('DOMContentLoaded', () => {

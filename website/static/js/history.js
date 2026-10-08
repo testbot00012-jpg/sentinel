@@ -45,10 +45,25 @@ class HistoryController {
       this.allScans = Array.isArray(scans) ? scans : [];
       this.renderTable();
       if (showToast) window.toast(`Loaded ${this.allScans.length} historical scans.`, 'success');
+      this.startRealtimeHistorySync();
     } catch (err) {
       console.warn('History load failed:', err);
       this.tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-sub);padding:2rem;">Could not load scan logs (${err.message})</td></tr>`;
     }
+  }
+
+  startRealtimeHistorySync() {
+    if (this.syncTimer) clearInterval(this.syncTimer);
+    this.syncTimer = setInterval(async () => {
+      try {
+        const scans = await window.api.getScanHistory();
+        if (Array.isArray(scans) && scans.length !== this.allScans.length) {
+          this.allScans = scans;
+          this.renderTable();
+          window.toast('📱 Real-Time Sync: New scan record received from Android', 'success');
+        }
+      } catch (e) {}
+    }, 3000);
   }
 
   renderTable() {

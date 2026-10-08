@@ -21,6 +21,9 @@ class DashboardController {
     this.breakdownApp = document.getElementById('bar-app');
     this.breakdownDevice = document.getElementById('bar-device');
     this.breakdownAccount = document.getElementById('bar-account');
+
+    this.knownScanIds = new Set();
+    this.syncTimer = null;
   }
 
   async loadDashboard() {
@@ -32,12 +35,67 @@ class DashboardController {
         window.api.getAccountDevices().catch(() => [])
       ]);
 
+      if (Array.isArray(historyData)) {
+        historyData.forEach(s => this.knownScanIds.add(s.id));
+      }
+
       this.renderScore(scoreData, historyData);
       this.renderStats(historyData, alertsData, devicesData);
       this.renderAlerts(alertsData);
       this.renderRecentActivity(historyData);
+
+      this.startRealtimeSync();
     } catch (err) {
       console.warn('Dashboard load error:', err);
+    }
+  }
+
+  startRealtimeSync() {
+    if (this.syncTimer) clearInterval(this.syncTimer);
+    // Poll every 2.5 seconds for instant real-time synchronization with Android app
+    this.syncTimer = setInterval(() => this.pollRealtimeTelemetry(), 2500);
+  }
+
+  async pollRealtimeTelemetry() {
+    try {
+      const historyData = await window.api.getScanHistory().catch(() => []);
+      if (!Array.isArray(historyData) || historyData.length === 0) return;
+
+      const newScans = historyData.filter(s => !this.knownScanIds.has(s.id));
+      if (newScans.length > 0) {
+        newScans.forEach(s => this.knownScanIds.add(s.id));
+
+        const androidScan = newScans.find(s => 
+          s.device_brand === 'Android' || 
+          (s.device_name && s.device_name.toLowerCase().includes('android')) || 
+          (s.device_id && s.device_id.startsWith('android'))
+        );
+
+        if (androidScan) {
+          const typeLabel = (androidScan.scan_type || 'Security Scan').replace('_', ' ');
+          const targetLabel = (androidScan.target_identifier || 'Target').substring(0, 26);
+          window.toast(`📱 Synced from Android: ${typeLabel} (${targetLabel})`, 'success');
+
+          const syncPill = document.getElementById('sync-status-pill');
+          if (syncPill) {
+            syncPill.innerHTML = `<span class="pulse-dot" style="background:#10b981;"></span><span>🟢 Synced with Android (Live)</span>`;
+            syncPill.style.color = '#34d399';
+          }
+        }
+
+        const [scoreData, alertsData, devicesData] = await Promise.all([
+          window.api.getSecurityScore().catch(() => null),
+          window.api.getAlerts().catch(() => []),
+          window.api.getAccountDevices().catch(() => [])
+        ]);
+
+        this.renderScore(scoreData, historyData);
+        this.renderStats(historyData, alertsData, devicesData);
+        this.renderAlerts(alertsData);
+        this.renderRecentActivity(historyData, newScans.map(s => s.id));
+      }
+    } catch (e) {
+      // Background catch
     }
   }
 
@@ -160,7 +218,7 @@ class DashboardController {
     }
   }
 
-  renderRecentActivity(scans) {
+  renderRecentActivity(scans, justSyncedIds = []) {
     if (!this.activityContainer) return;
 
     if (!Array.isArray(scans) || scans.length === 0) {
@@ -168,7 +226,7 @@ class DashboardController {
         <div style="text-align:center;padding:2rem 1rem;color:var(--text-sub);">
           <div style="font-size:2rem;margin-bottom:0.5rem;">🔍</div>
           <p style="font-weight:600;color:var(--text-main);">No Recent Scans Found</p>
-          <p style="font-size:0.8rem;">Run your first URL, SMS, Deepfake, or QR test using the quick action launcher above.</p>
+          <p style="font-size:0.8rem;">Click 'Launch Security Scan' above to run your first inspection.</p>
         </div>
       `;
       return;
@@ -178,9 +236,10 @@ class DashboardController {
       const isThreat = s.risk_level === 'CRITICAL' || s.risk_level === 'HIGH_RISK';
       const badgeCls = isThreat ? 'critical' : (s.risk_level === 'SAFE' ? 'safe' : 'suspicious');
       const icon = s.scan_type.includes('URL') ? '🌐' : (s.scan_type.includes('MESSAGE') || s.scan_type.includes('SMS') ? '💬' : (s.scan_type.includes('DEEPFAKE') ? '👁️' : '📷'));
+      const isNew = justSyncedIds.includes(s.id);
 
       return `
-        <div class="feed-item" onclick="window.historyController.inspectScan('${s.id}')">
+        <div class="feed-item ${isNew ? 'just-synced' : ''}" onclick="window.historyController.inspectScan('${s.id}')">
           <div class="feed-item-icon" style="background:${isThreat ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)'};">
             ${icon}
           </div>

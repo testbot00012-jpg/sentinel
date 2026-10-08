@@ -322,6 +322,79 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
         )
     }
 
+    suspend fun getScanHistory(): Result<List<SecurityResult>> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$baseUrl/scans/history")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("Accept", "application/json")
+            authToken?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
+            conn.connectTimeout = 5000
+            conn.readTimeout = 6000
+
+            val code = conn.responseCode
+            if (code in 200..299) {
+                val responseText = BufferedReader(InputStreamReader(conn.inputStream, "UTF-8")).use { it.readText() }
+                val jsonArray = JSONArray(responseText)
+                val list = mutableListOf<SecurityResult>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    val sType = obj.optString("scan_type", "GENERAL")
+                    val parsed = parseSecurityResult(obj, sType)
+                    val target = obj.optString("target_identifier", obj.optString("raw_input_reference", sType))
+                    val summary = obj.optString("summary", parsed.explanation)
+                    val updated = parsed.copy(
+                        scanId = obj.optString("id", obj.optString("scan_id", parsed.scanId)),
+                        explanation = if (parsed.explanation.isBlank() || parsed.explanation == "Scan completed.") summary else parsed.explanation,
+                        rawInputReference = if (parsed.rawInputReference.isNullOrBlank()) target else parsed.rawInputReference,
+                        quickSummary = if (parsed.quickSummary.isNullOrBlank()) summary else parsed.quickSummary
+                    )
+                    list.add(updated)
+                }
+                Result.success(list)
+            } else {
+                Result.failure(Exception("HTTP $code from $url"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun recordScan(result: SecurityResult): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val payload = JSONObject().apply {
+                put("scan_id", result.scanId)
+                put("scanner_type", result.scannerType)
+                put("risk_level", result.riskLevel.name)
+                put("risk_score", result.riskScore)
+                put("security_score", result.securityScore)
+                put("threat_probability", result.threatProbability)
+                put("confidence", result.confidence)
+                put("explanation", result.explanation)
+                put("target_identifier", result.rawInputReference ?: result.scannerType)
+                put("model_name", result.modelName)
+                put("model_version", result.modelVersion)
+                val sigArr = JSONArray()
+                result.signals.forEach { s ->
+                    sigArr.put(JSONObject().apply {
+                        put("name", s.name)
+                        put("type", s.type)
+                        put("severity", s.severity)
+                        put("description", s.description)
+                        put("evidence_value", s.evidenceValue)
+                    })
+                }
+                put("signals", sigArr)
+                val recArr = JSONArray()
+                result.recommendedActions.forEach { recArr.put(it) }
+                put("recommended_actions", recArr)
+            }
+            postJson("/scans/record", payload).map { true }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun parseSecurityResult(json: JSONObject, defaultType: String): SecurityResult {
         val signalsList = mutableListOf<ScannerSignal>()
         val sigArray = json.optJSONArray("signals") ?: JSONArray()

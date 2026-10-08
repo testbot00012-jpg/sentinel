@@ -49,28 +49,16 @@
       </div>
     </a>
 
-    <nav>
+        <nav>
       <ul class="nav-links">
         <li><a class="nav-link" href="index.html">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          Overview
+          Dashboard
         </a></li>
-        <li><a class="nav-link" href="url-shield.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          URL Shield
-        </a></li>
-        <li><a class="nav-link active" href="message-shield.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Message Shield
-        </a></li>
-        <li><a class="nav-link" href="deepfake-vision.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          Deepfake Vision
-        </a></li>
-        <li><a class="nav-link" href="qr-guard.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          QR Safety
-        </a></li>
+        <li><button type="button" class="nav-link nav-scan-btn" onclick="window.sentinelApp.openScanModal()" style="background:none;border:none;cursor:pointer;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Scan Options ▾</span>
+        </button></li>
         <li><a class="nav-link" href="assistant.html">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM4 12a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zm12 0a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2zm-6 6a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h0a2 2 0 0 1-2-2v-2z"/><circle cx="12" cy="12" r="3"/></svg>
           AI Assistant
@@ -209,5 +197,112 @@
   <script src="./js/auth.js"></script>
   <script src="./js/assistant.js"></script>
   <script src="./js/scanners.js"></script>
+  <!-- ==========================================================================
+       MODAL: SELECT & LAUNCH SECURITY SCANNER
+       ========================================================================== -->
+  <div id="scan-options-modal" class="modal-backdrop">
+    <div class="glass-panel modal-card scan-options-modal-card">
+      <div class="modal-header">
+        <div>
+          <div class="scan-hub-badge">SELECT ENGINE</div>
+          <h3 class="modal-title" style="margin-top:0.25rem;">Choose Security Scanner</h3>
+          <p style="font-size:0.84rem;color:var(--text-sub);margin-top:0.25rem;">Select an AI detection engine to inspect targets with real-time cross-device sync:</p>
+        </div>
+        <button class="modal-close-btn" onclick="window.sentinelApp.closeScanModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="scan-options-grid">
+          <!-- Option 1: URL Shield -->
+          <a href="url-shield.html" class="scan-option-tile">
+            <div>
+              <div class="scan-option-tile-top">
+                <div class="scan-option-icon" style="background:rgba(0,242,254,0.12);color:#00f2fe;">🌐</div>
+                <div>
+                  <h4>URL Phishing Shield</h4>
+                  <p>Pre-flight DNS checks, Shannon entropy, homograph punycode & GBDT phishing detection.</p>
+                </div>
+              </div>
+              <div class="scan-option-chips">
+                <span class="scan-option-chip">DNS Heuristics</span>
+                <span class="scan-option-chip">Homograph</span>
+                <span class="scan-option-chip">SSL Age</span>
+              </div>
+            </div>
+            <div class="scan-option-btn-link">
+              <span>Launch URL Scanner</span>
+              <span>&rarr;</span>
+            </div>
+          </a>
+
+          <!-- Option 2: Message Shield -->
+          <a href="message-shield.html" class="scan-option-tile">
+            <div>
+              <div class="scan-option-tile-top">
+                <div class="scan-option-icon" style="background:rgba(99,102,241,0.12);color:#818cf8;">💬</div>
+                <div>
+                  <h4>SMS & Message Scam NLP</h4>
+                  <p>Multilingual semantic analyzer for urgency traps, OTP interception, and lottery fraud.</p>
+                </div>
+              </div>
+              <div class="scan-option-chips">
+                <span class="scan-option-chip">English</span>
+                <span class="scan-option-chip">हिन्दी</span>
+                <span class="scan-option-chip">తెలుగు</span>
+              </div>
+            </div>
+            <div class="scan-option-btn-link">
+              <span>Launch SMS Scanner</span>
+              <span>&rarr;</span>
+            </div>
+          </a>
+
+          <!-- Option 3: Deepfake Vision -->
+          <a href="deepfake-vision.html" class="scan-option-tile">
+            <div>
+              <div class="scan-option-tile-top">
+                <div class="scan-option-icon" style="background:rgba(236,72,153,0.12);color:#f472b6;">👁️</div>
+                <div>
+                  <h4>Deepfake Vision Forensics</h4>
+                  <p>Pixel PRNU sensor noise residual, dermis smoothing, and generative diffusion artifacts.</p>
+                </div>
+              </div>
+              <div class="scan-option-chips">
+                <span class="scan-option-chip">PRNU Sensor</span>
+                <span class="scan-option-chip">Texture FFT</span>
+                <span class="scan-option-chip">Face Forensics</span>
+              </div>
+            </div>
+            <div class="scan-option-btn-link">
+              <span>Launch Vision Scanner</span>
+              <span>&rarr;</span>
+            </div>
+          </a>
+
+          <!-- Option 4: QR & Payment Safety -->
+          <a href="qr-guard.html" class="scan-option-tile">
+            <div>
+              <div class="scan-option-tile-top">
+                <div class="scan-option-icon" style="background:rgba(16,185,129,0.12);color:#34d399;">📷</div>
+                <div>
+                  <h4>QR & Payment Safety</h4>
+                  <p>UPI deep payload parsing, disguised collect debit traps & fraudulent receipt forensics.</p>
+                </div>
+              </div>
+              <div class="scan-option-chips">
+                <span class="scan-option-chip">UPI Collect Traps</span>
+                <span class="scan-option-chip">NPCI Parameters</span>
+                <span class="scan-option-chip">Fake Receipts</span>
+              </div>
+            </div>
+            <div class="scan-option-btn-link">
+              <span>Launch QR Scanner</span>
+              <span>&rarr;</span>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

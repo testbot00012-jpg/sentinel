@@ -14,6 +14,8 @@ import com.cybershield.app.core.security.DeviceRepository
 import com.cybershield.app.core.security.RealFileInfo
 import com.cybershield.app.core.security.RealStorageMetrics
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -189,6 +191,15 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     val trustedSessions = MutableStateFlow<List<SessionInfo>>(emptyList())
 
     init {
+        // Restore auth token for cross-device cloud API sync
+        val savedToken = authPrefs.getString("auth_token", null)
+        val isLoggedInSaved = authPrefs.getBoolean("is_logged_in", false)
+        if (!savedToken.isNullOrBlank() && isLoggedInSaved) {
+            apiClient.setAuthToken(savedToken)
+            _isLoggedIn.value = true
+            _currentUserEmail.value = authPrefs.getString("saved_email", null)
+        }
+
         loadPersistedScanHistory()
         loadPersistedAuditLogs()
         refreshTelemetry()
@@ -196,6 +207,44 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         refreshInspectedApps(true)
         refreshStorageInfo()
         refreshStorageFileScans()
+        startCloudScanRealtimeSync()
+    }
+
+    private fun startCloudScanRealtimeSync() {
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    syncCloudScans()
+                } catch (_: Exception) {}
+                delay(3000) // Poll every 3 seconds for real-time cross-device sync
+            }
+        }
+    }
+
+    suspend fun syncCloudScans() {
+        val res = apiClient.getScanHistory()
+        res.onSuccess { cloudScans ->
+            if (cloudScans.isNotEmpty()) {
+                val current = _scanHistory.value
+                val existingIds = current.map { it.scanId }.toSet()
+                val newFromCloud = cloudScans.filter { it.scanId !in existingIds }
+                if (newFromCloud.isNotEmpty()) {
+                    val merged = (newFromCloud + current).take(100)
+                    withContext(Dispatchers.Main) {
+                        _scanHistory.value = merged
+                        savePersistedScanHistory(merged)
+                        newFromCloud.firstOrNull()?.let { s ->
+                            recordSecurityAuditLog(
+                                "Cloud Scan Synced",
+                                "${s.scannerType}: ${s.rawInputReference ?: "New inspection"}",
+                                "SYNC",
+                                0xFF31D7FF
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun loadPersistedScanHistory() {
@@ -319,6 +368,13 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
             type = typeBadge,
             colorHex = colorHex
         )
+
+        // Real-time synchronization to Cloud Backend & Web Console
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                apiClient.recordScan(result)
+            } catch (_: Exception) {}
+        }
     }
 
     fun updateServerUrl(newUrl: String) {
@@ -463,6 +519,7 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                     _authStatus.value = null
                     recordSecurityAuditLog("User Authentication Successful", "Token generated for $email", "SESSION", 0xFF00E676)
                     refreshAccountActivities()
+                    launch(Dispatchers.IO) { syncCloudScans() }
                     onResult(true, "Authentication successful")
                 },
                 onFailure = { err ->
@@ -490,6 +547,7 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                     _authStatus.value = null
                     recordSecurityAuditLog("New User Registered", "Account initialized for $email", "SESSION", 0xFF00E676)
                     refreshAccountActivities()
+                    launch(Dispatchers.IO) { syncCloudScans() }
                     onResult(true, "Registration successful")
                 },
                 onFailure = { err ->

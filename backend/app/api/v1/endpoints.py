@@ -971,6 +971,65 @@ async def scan_deepfake(
     await _save_scan_record(db, user_payload["sub"], user_payload["device_id"], res, req.media_hash_sha256[:20])
     return res
 
+@api_router.post("/scans/record", response_model=SecurityResult)
+async def record_scan(
+    req: Dict[str, Any],
+    user_payload: Dict[str, Any] = Depends(get_current_user_payload),
+    db: AsyncSession = Depends(get_db)
+):
+    scan_id = req.get("scan_id") or str(uuid.uuid4())
+    scanner_type = req.get("scanner_type", "GENERAL")
+    risk_level_str = req.get("risk_level", "SAFE")
+    try:
+        risk_level = RiskLevelEnum(risk_level_str)
+    except Exception:
+        risk_level = RiskLevelEnum.SAFE
+    risk_score = int(req.get("risk_score", 0))
+    security_score = int(req.get("security_score", max(0, 100 - risk_score)))
+    threat_prob = float(req.get("threat_probability", round(risk_score / 100.0, 2)))
+    confidence = float(req.get("confidence", 0.95))
+    explanation = req.get("explanation", "Scan completed.")
+    target = req.get("target_identifier") or req.get("raw_input_reference") or scanner_type
+    
+    signals = []
+    for s in req.get("signals", []):
+        if isinstance(s, dict):
+            signals.append(ScannerSignal(
+                name=s.get("name", "Signal"),
+                type=s.get("type", "ANALYSIS"),
+                severity=s.get("severity", "LOW"),
+                description=s.get("description", ""),
+                evidence_value=s.get("evidence_value")
+            ))
+            
+    recs = req.get("recommended_actions") or ["Review scan report."]
+    whys = req.get("why_this_score") or [f"Risk score evaluated at {risk_score}/100"]
+    evs = req.get("evidence") or [target]
+    
+    res = SecurityResult(
+        scan_id=scan_id,
+        scanner_type=scanner_type,
+        risk_level=risk_level,
+        risk_score=risk_score,
+        security_score=security_score,
+        threat_probability=threat_prob,
+        confidence=confidence,
+        signals=signals,
+        explanation=explanation,
+        recommended_actions=recs,
+        limitations=req.get("limitations") or ["Synchronized cross-platform telemetry scan."],
+        model_name=req.get("model_name", "Sentinel-Sync-Engine"),
+        model_version=req.get("model_version", "2.0.0"),
+        timestamp=datetime.now(timezone.utc),
+        quick_summary=req.get("quick_summary") or explanation,
+        why_this_score=whys,
+        evidence=evs,
+        raw_input_reference=target
+    )
+    
+    await _save_scan_record(db, user_payload["sub"], user_payload["device_id"], res, target)
+    return res
+
 @api_router.get("/scans/{scan_id}", response_model=SecurityResult)
 async def get_scan_by_id(
     scan_id: str,

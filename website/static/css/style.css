@@ -1905,3 +1905,248 @@ select.cyber-input {
   background: rgba(6, 9, 19, 0.95);
   margin-top: auto;
 }
+
+/* ==========================================================================
+   SCAN HUB TRIGGER CARD & SCAN SELECTOR MODAL
+   ========================================================================== */
+.scan-hub-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(11, 17, 32, 0.95) 100%);
+  border: 1.5px solid rgba(0, 242, 254, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 1.6rem 2rem;
+  margin-top: 1.25rem;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 242, 254, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.scan-hub-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 242, 254, 0.08), transparent);
+  transition: 0.6s ease;
+}
+
+.scan-hub-card:hover::before {
+  left: 100%;
+}
+
+.scan-hub-card:hover {
+  border-color: var(--cyan-primary);
+  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.7), 0 0 35px rgba(0, 242, 254, 0.25);
+  transform: translateY(-2px);
+}
+
+.scan-hub-card-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.scan-hub-icon-glow {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  flex-shrink: 0;
+}
+
+.scan-hub-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--cyan-primary);
+  background: rgba(0, 242, 254, 0.1);
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  margin-bottom: 0.35rem;
+}
+
+.scan-hub-info h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.25rem;
+  font-family: var(--font-heading);
+}
+
+.scan-hub-info p {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.btn-scan-glow {
+  padding: 0.85rem 1.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  box-shadow: 0 0 25px rgba(0, 242, 254, 0.35);
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+}
+
+/* Scan Options Modal Grid */
+.scan-options-modal-card {
+  max-width: 780px !important;
+  width: 90% !important;
+}
+
+.scan-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 720px) {
+  .scan-options-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.scan-option-tile {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-decoration: none;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.scan-option-tile:hover {
+  transform: translateY(-3px);
+  background: rgba(22, 34, 60, 0.85);
+  border-color: var(--cyan-primary);
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 242, 254, 0.2);
+}
+
+.scan-option-tile-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.scan-option-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.scan-option-tile h4 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.25rem;
+  font-family: var(--font-heading);
+}
+
+.scan-option-tile p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.scan-option-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.scan-option-chip {
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-sub);
+  font-family: var(--font-mono);
+}
+
+.scan-option-btn-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--cyan-primary);
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  transition: color 0.2s ease;
+}
+
+.scan-option-tile:hover .scan-option-btn-link {
+  color: #fff;
+}
+
+/* Nav Scan Dropdown Trigger */
+.nav-scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  font-weight: 500;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.nav-scan-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Real-Time Pulse Effect on Synced Feed Item */
+.feed-item.just-synced {
+  animation: pulseNewItem 1.5s ease-out;
+  border-left: 3px solid var(--cyan-primary) !important;
+}
+
+@keyframes pulseNewItem {
+  0% {
+    background: rgba(0, 242, 254, 0.2);
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.35);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
