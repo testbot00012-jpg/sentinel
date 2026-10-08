@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_
 from typing import List, Dict, Any, Optional
 import hashlib
 import os
@@ -669,26 +670,27 @@ async def get_scan_history(
     user_id = user_payload.get("sub")
     
     if user_id and user_id != "guest-user-web":
-        stmt = select(Scan).where(
-            (Scan.user_id == user_id) | (Scan.device_id == device_id)
-        ).order_by(Scan.created_at.desc()).limit(100)
+        # Strictly query scans created by this specific authenticated user or their registered devices
+        d_res = await db.execute(select(Device.id).where(Device.user_id == user_id))
+        user_dev_ids = set(d_res.scalars().all())
+        if device_id:
+            user_dev_ids.add(device_id)
+
+        conds = [Scan.user_id == user_id]
+        if user_dev_ids:
+            conds.append(Scan.device_id.in_(list(user_dev_ids)))
+
+        stmt = select(Scan).where(or_(*conds)).order_by(Scan.created_at.desc()).limit(100)
         res = await db.execute(stmt)
         scans = list(res.scalars().all())
-        
-        # Include recent platform scans so scans conducted on Web/App cross-sync immediately
-        if len(scans) < 20:
-            more_res = await db.execute(select(Scan).order_by(Scan.created_at.desc()).limit(100))
-            all_recent = more_res.scalars().all()
-            existing_ids = {s.id for s in scans}
-            for s in all_recent:
-                if s.id not in existing_ids:
-                    scans.append(s)
-                    existing_ids.add(s.id)
-            scans.sort(key=lambda x: x.created_at if x.created_at else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     else:
-        stmt = select(Scan).order_by(Scan.created_at.desc()).limit(100)
-        res = await db.execute(stmt)
-        scans = list(res.scalars().all())
+        # Strictly return scans initiated by this specific guest session/device only
+        if device_id and device_id != "web-session-guest":
+            stmt = select(Scan).where(Scan.device_id == device_id).order_by(Scan.created_at.desc()).limit(100)
+            res = await db.execute(stmt)
+            scans = list(res.scalars().all())
+        else:
+            scans = []
 
     # Query registered devices for friendly device origin names
     dev_ids = list({s.device_id for s in scans})
@@ -772,18 +774,25 @@ async def get_latest_scan(
     user_id = user_payload.get("sub")
     
     if user_id and user_id != "guest-user-web":
-        stmt = select(Scan).where(
-            (Scan.user_id == user_id) | (Scan.device_id == device_id)
-        ).order_by(Scan.created_at.desc()).limit(1)
+        d_res = await db.execute(select(Device.id).where(Device.user_id == user_id))
+        user_dev_ids = set(d_res.scalars().all())
+        if device_id:
+            user_dev_ids.add(device_id)
+
+        conds = [Scan.user_id == user_id]
+        if user_dev_ids:
+            conds.append(Scan.device_id.in_(list(user_dev_ids)))
+
+        stmt = select(Scan).where(or_(*conds)).order_by(Scan.created_at.desc()).limit(1)
         res = await db.execute(stmt)
         latest = res.scalars().first()
-        if not latest:
-            more_res = await db.execute(select(Scan).order_by(Scan.created_at.desc()).limit(1))
-            latest = more_res.scalars().first()
     else:
-        stmt = select(Scan).order_by(Scan.created_at.desc()).limit(1)
-        res = await db.execute(stmt)
-        latest = res.scalars().first()
+        if device_id and device_id != "web-session-guest":
+            stmt = select(Scan).where(Scan.device_id == device_id).order_by(Scan.created_at.desc()).limit(1)
+            res = await db.execute(stmt)
+            latest = res.scalars().first()
+        else:
+            latest = None
         
     if not latest:
         return {"status": "NO_PREVIOUS_SCANS"}
@@ -1253,9 +1262,19 @@ async def get_alerts(
     device_id = user_payload.get("device_id")
     user_id = user_payload.get("sub")
     if user_id and user_id != "guest-user-web":
-        stmt = select(Alert).where((Alert.user_id == user_id) | (Alert.device_id == device_id))
+        d_res = await db.execute(select(Device.id).where(Device.user_id == user_id))
+        user_dev_ids = set(d_res.scalars().all())
+        if device_id:
+            user_dev_ids.add(device_id)
+        conds = [Alert.user_id == user_id]
+        if user_dev_ids:
+            conds.append(Alert.device_id.in_(list(user_dev_ids)))
+        stmt = select(Alert).where(or_(*conds))
     else:
-        stmt = select(Alert).where(Alert.device_id == device_id)
+        if device_id and device_id != "web-session-guest":
+            stmt = select(Alert).where(Alert.device_id == device_id)
+        else:
+            return []
     if severity:
         stmt = stmt.where(Alert.severity == severity.upper())
     stmt = stmt.order_by(Alert.created_at.desc()).limit(100)

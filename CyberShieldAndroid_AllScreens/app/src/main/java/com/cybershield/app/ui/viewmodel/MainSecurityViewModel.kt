@@ -124,7 +124,9 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     private val _authStatus = MutableStateFlow<String?>(null)
     val authStatus: StateFlow<String?> = _authStatus.asStateFlow()
 
-    private val _currentUserEmail = MutableStateFlow<String?>(authPrefs.getString("saved_email", "user@sentinelai.security") ?: "user@sentinelai.security")
+    private val _currentUserEmail = MutableStateFlow<String?>(
+        if (authPrefs.getBoolean("is_logged_in", false)) authPrefs.getString("saved_email", null) else null
+    )
     val currentUserEmail: StateFlow<String?> = _currentUserEmail.asStateFlow()
 
     private val _serverUrl = MutableStateFlow(apiClient.getBaseUrl())
@@ -194,13 +196,19 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         // Restore auth token for cross-device cloud API sync
         val savedToken = authPrefs.getString("auth_token", null)
         val isLoggedInSaved = authPrefs.getBoolean("is_logged_in", false)
-        if (!savedToken.isNullOrBlank() && isLoggedInSaved) {
+        val savedEmail = authPrefs.getString("saved_email", null)
+        if (!savedToken.isNullOrBlank() && isLoggedInSaved && !savedEmail.isNullOrBlank()) {
             apiClient.setAuthToken(savedToken)
             _isLoggedIn.value = true
-            _currentUserEmail.value = authPrefs.getString("saved_email", null)
+            _currentUserEmail.value = savedEmail
+            loadPersistedScanHistory(savedEmail)
+        } else {
+            apiClient.setAuthToken(null)
+            _isLoggedIn.value = false
+            _currentUserEmail.value = null
+            _scanHistory.value = emptyList()
         }
 
-        loadPersistedScanHistory()
         loadPersistedAuditLogs()
         refreshTelemetry()
         refreshAccountActivities()
@@ -234,35 +242,30 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     suspend fun syncCloudScans() {
         val res = apiClient.getScanHistory()
         res.onSuccess { cloudScans ->
-            if (cloudScans.isNotEmpty()) {
-                val current = _scanHistory.value
-                val existingIds = current.map { it.scanId }.toSet()
-                val newFromCloud = cloudScans.filter { it.scanId !in existingIds }
-                if (newFromCloud.isNotEmpty()) {
-                    val merged = (newFromCloud + current).take(100)
-                    withContext(Dispatchers.Main) {
-                        _scanHistory.value = merged
-                        savePersistedScanHistory(merged)
-                        if (_currentScanResult.value == null) {
-                            _currentScanResult.value = newFromCloud.first()
-                        }
-                        newFromCloud.firstOrNull()?.let { s ->
-                            recordSecurityAuditLog(
-                                "Cloud Scan Synced",
-                                "${s.scannerType}: ${s.rawInputReference ?: "New inspection"}",
-                                "SYNC",
-                                0xFF31D7FF
-                            )
-                        }
-                    }
+            withContext(Dispatchers.Main) {
+                // cloudScans represents the authoritative history for THIS particular account
+                _scanHistory.value = cloudScans
+                savePersistedScanHistory(cloudScans)
+                if (_currentScanResult.value == null && cloudScans.isNotEmpty()) {
+                    _currentScanResult.value = cloudScans.first()
                 }
             }
         }
     }
 
-    private fun loadPersistedScanHistory() {
+    private fun getHistoryPrefKey(email: String? = currentUserEmail.value): String {
+        val clean = email?.trim()?.lowercase()
+        return if (!clean.isNullOrBlank()) "saved_scans_json_${clean}" else "saved_scans_json_guest"
+    }
+
+    private fun loadPersistedScanHistory(email: String? = currentUserEmail.value) {
         try {
-            val jsonStr = historyPrefs.getString("saved_scans_json", null)
+            // Remove legacy unpartitioned key to ensure no default/mock scans leak
+            if (historyPrefs.contains("saved_scans_json")) {
+                historyPrefs.edit().remove("saved_scans_json").apply()
+            }
+            val key = getHistoryPrefKey(email)
+            val jsonStr = historyPrefs.getString(key, null)
             if (!jsonStr.isNullOrBlank()) {
                 val array = JSONArray(jsonStr)
                 val list = mutableListOf<SecurityResult>()
@@ -271,17 +274,22 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                     list.add(jsonToSecurityResult(obj))
                 }
                 _scanHistory.value = list
+            } else {
+                _scanHistory.value = emptyList()
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            _scanHistory.value = emptyList()
+        }
     }
 
-    private fun savePersistedScanHistory(list: List<SecurityResult>) {
+    private fun savePersistedScanHistory(list: List<SecurityResult>, email: String? = currentUserEmail.value) {
         try {
+            val key = getHistoryPrefKey(email)
             val array = JSONArray()
             list.take(100).forEach { item ->
                 array.put(securityResultToJson(item))
             }
-            historyPrefs.edit().putString("saved_scans_json", array.toString()).apply()
+            historyPrefs.edit().putString(key, array.toString()).apply()
         } catch (_: Exception) {}
     }
 
@@ -365,7 +373,7 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
 
     fun addScanResult(result: SecurityResult) {
         _currentScanResult.value = result
-        val updated = listOf(result) + _scanHistory.value
+        val updated = listOf(result) + _scanHistory.value.filter { it.scanId != result.scanId }
         _scanHistory.value = updated
         savePersistedScanHistory(updated)
 
@@ -508,9 +516,14 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
             authPrefs.edit()
                 .putBoolean("is_logged_in", false)
                 .remove("auth_token")
+                .remove("saved_email")
                 .apply()
             apiClient.setAuthToken(null)
             _isLoggedIn.value = false
+            _currentUserEmail.value = null
+            _scanHistory.value = emptyList()
+            _currentScanResult.value = null
+            _accountActivities.value = emptyList()
             recordSecurityAuditLog("User Signed Out", "Account credentials cleared from session", "SESSION", 0xFFFF9800)
             onComplete()
         }
@@ -519,18 +532,22 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     fun login(email: String, pass: String, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             _authStatus.value = "Authenticating..."
-            val res = apiClient.login(email.trim(), pass)
+            val cleanEmail = email.trim().lowercase()
+            val res = apiClient.login(cleanEmail, pass)
             res.fold(
                 onSuccess = { token ->
+                    apiClient.setAuthToken(token)
                     authPrefs.edit()
                         .putBoolean("is_logged_in", true)
                         .putString("auth_token", token)
-                        .putString("saved_email", email.trim())
+                        .putString("saved_email", cleanEmail)
                         .apply()
                     _isLoggedIn.value = true
-                    _currentUserEmail.value = email.trim()
+                    _currentUserEmail.value = cleanEmail
                     _authStatus.value = null
-                    recordSecurityAuditLog("User Authentication Successful", "Token generated for $email", "SESSION", 0xFF00E676)
+                    // Load this particular account's scan history immediately
+                    loadPersistedScanHistory(cleanEmail)
+                    recordSecurityAuditLog("User Authentication Successful", "Token generated for $cleanEmail", "SESSION", 0xFF00E676)
                     refreshAccountActivities()
                     launch(Dispatchers.IO) { syncCloudScans() }
                     onResult(true, "Authentication successful")
@@ -547,18 +564,22 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     fun register(email: String, pass: String, fullName: String = "User", onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             _authStatus.value = "Registering..."
-            val res = apiClient.register(email.trim(), pass, fullName)
+            val cleanEmail = email.trim().lowercase()
+            val res = apiClient.register(cleanEmail, pass, fullName)
             res.fold(
                 onSuccess = { token ->
+                    apiClient.setAuthToken(token)
                     authPrefs.edit()
                         .putBoolean("is_logged_in", true)
                         .putString("auth_token", token)
-                        .putString("saved_email", email.trim())
+                        .putString("saved_email", cleanEmail)
                         .apply()
                     _isLoggedIn.value = true
-                    _currentUserEmail.value = email.trim()
+                    _currentUserEmail.value = cleanEmail
                     _authStatus.value = null
-                    recordSecurityAuditLog("New User Registered", "Account initialized for $email", "SESSION", 0xFF00E676)
+                    // Initialize empty history for newly registered account
+                    loadPersistedScanHistory(cleanEmail)
+                    recordSecurityAuditLog("New User Registered", "Account initialized for $cleanEmail", "SESSION", 0xFF00E676)
                     refreshAccountActivities()
                     launch(Dispatchers.IO) { syncCloudScans() }
                     onResult(true, "Registration successful")
