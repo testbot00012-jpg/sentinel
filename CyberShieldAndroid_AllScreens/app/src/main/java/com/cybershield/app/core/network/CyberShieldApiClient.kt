@@ -387,9 +387,7 @@ class CyberShieldApiClient(private var baseUrl: String = DEFAULT_URL) {
                         )
                         list.add(updated)
                     }
-                    if (list.isNotEmpty() || targetUrl == urlsToTry.last()) {
-                        return@withContext Result.success(list)
-                    }
+                    return@withContext Result.success(list)
                 }
             } catch (e: Exception) {
                 lastException = e

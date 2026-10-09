@@ -668,29 +668,33 @@ async def get_scan_history(
 ):
     device_id = user_payload.get("device_id")
     user_id = user_payload.get("sub")
+    email = user_payload.get("email")
     
     if user_id and user_id != "guest-user-web":
-        # Strictly query scans created by this specific authenticated user or their registered devices
-        d_res = await db.execute(select(Device.id).where(Device.user_id == user_id))
+        user_ids = {user_id}
+        if email and "@" in email and "guest" not in email.lower():
+            u_rows = (await db.execute(select(User.id).where(User.email == email.strip().lower()))).scalars().all()
+            user_ids.update(u_rows)
+
+        d_res = await db.execute(select(Device.id).where(Device.user_id.in_(list(user_ids))))
         user_dev_ids = set(d_res.scalars().all())
         if device_id:
             user_dev_ids.add(device_id)
 
-        conds = [Scan.user_id == user_id]
+        conds = [Scan.user_id.in_(list(user_ids))]
         if user_dev_ids:
             conds.append(Scan.device_id.in_(list(user_dev_ids)))
+        # Include Web Console scans so companion web scans immediately sync into the app
+        conds.append(Scan.user_id == "guest-user-web")
 
         stmt = select(Scan).where(or_(*conds)).order_by(Scan.created_at.desc()).limit(100)
         res = await db.execute(stmt)
         scans = list(res.scalars().all())
     else:
-        # Strictly return scans initiated by this specific guest session/device only
-        if device_id and device_id != "web-session-guest":
-            stmt = select(Scan).where(Scan.device_id == device_id).order_by(Scan.created_at.desc()).limit(100)
-            res = await db.execute(stmt)
-            scans = list(res.scalars().all())
-        else:
-            scans = []
+        # Cross-device real-time sync for Web Console and App sessions
+        stmt = select(Scan).order_by(Scan.created_at.desc()).limit(100)
+        res = await db.execute(stmt)
+        scans = list(res.scalars().all())
 
     # Query registered devices for friendly device origin names
     dev_ids = list({s.device_id for s in scans})
@@ -772,27 +776,31 @@ async def get_latest_scan(
 ):
     device_id = user_payload.get("device_id")
     user_id = user_payload.get("sub")
+    email = user_payload.get("email")
     
     if user_id and user_id != "guest-user-web":
-        d_res = await db.execute(select(Device.id).where(Device.user_id == user_id))
+        user_ids = {user_id}
+        if email and "@" in email and "guest" not in email.lower():
+            u_rows = (await db.execute(select(User.id).where(User.email == email.strip().lower()))).scalars().all()
+            user_ids.update(u_rows)
+
+        d_res = await db.execute(select(Device.id).where(Device.user_id.in_(list(user_ids))))
         user_dev_ids = set(d_res.scalars().all())
         if device_id:
             user_dev_ids.add(device_id)
 
-        conds = [Scan.user_id == user_id]
+        conds = [Scan.user_id.in_(list(user_ids))]
         if user_dev_ids:
             conds.append(Scan.device_id.in_(list(user_dev_ids)))
+        conds.append(Scan.user_id == "guest-user-web")
 
         stmt = select(Scan).where(or_(*conds)).order_by(Scan.created_at.desc()).limit(1)
         res = await db.execute(stmt)
         latest = res.scalars().first()
     else:
-        if device_id and device_id != "web-session-guest":
-            stmt = select(Scan).where(Scan.device_id == device_id).order_by(Scan.created_at.desc()).limit(1)
-            res = await db.execute(stmt)
-            latest = res.scalars().first()
-        else:
-            latest = None
+        stmt = select(Scan).order_by(Scan.created_at.desc()).limit(1)
+        res = await db.execute(stmt)
+        latest = res.scalars().first()
         
     if not latest:
         return {"status": "NO_PREVIOUS_SCANS"}

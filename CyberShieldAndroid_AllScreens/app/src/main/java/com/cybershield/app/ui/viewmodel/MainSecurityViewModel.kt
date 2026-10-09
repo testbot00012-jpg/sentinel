@@ -243,11 +243,33 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         val res = apiClient.getScanHistory()
         res.onSuccess { cloudScans ->
             withContext(Dispatchers.Main) {
-                // cloudScans represents the authoritative history for THIS particular account
-                _scanHistory.value = cloudScans
-                savePersistedScanHistory(cloudScans)
-                if (_currentScanResult.value == null && cloudScans.isNotEmpty()) {
-                    _currentScanResult.value = cloudScans.first()
+                val current = _scanHistory.value
+                val existingIds = current.map { it.scanId }.toSet()
+                val newFromCloud = cloudScans.filter { it.scanId !in existingIds }
+
+                if (newFromCloud.isNotEmpty() || (current.isEmpty() && cloudScans.isNotEmpty())) {
+                    val mergedMap = mutableMapOf<String, SecurityResult>()
+                    // Cloud scans first (source of truth from Web & Cloud)
+                    cloudScans.forEach { mergedMap[it.scanId] = it }
+                    // Preserve any local scans not yet in cloud
+                    current.forEach { if (!mergedMap.containsKey(it.scanId)) mergedMap[it.scanId] = it }
+
+                    val mergedList = mergedMap.values.toList()
+                    _scanHistory.value = mergedList
+                    savePersistedScanHistory(mergedList)
+
+                    if (_currentScanResult.value == null && mergedList.isNotEmpty()) {
+                        _currentScanResult.value = mergedList.first()
+                    }
+
+                    newFromCloud.firstOrNull()?.let { s ->
+                        recordSecurityAuditLog(
+                            "Cloud Scan Synced",
+                            "${s.scannerType}: ${s.rawInputReference ?: "Web Console inspection"}",
+                            "SYNC",
+                            0xFF31D7FF
+                        )
+                    }
                 }
             }
         }
