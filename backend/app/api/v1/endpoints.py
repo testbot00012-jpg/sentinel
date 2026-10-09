@@ -684,8 +684,6 @@ async def get_scan_history(
         conds = [Scan.user_id.in_(list(user_ids))]
         if user_dev_ids:
             conds.append(Scan.device_id.in_(list(user_dev_ids)))
-        # Include Web Console scans so companion web scans immediately sync into the app
-        conds.append(Scan.user_id == "guest-user-web")
 
         stmt = select(Scan).where(or_(*conds)).order_by(Scan.created_at.desc()).limit(100)
         res = await db.execute(stmt)

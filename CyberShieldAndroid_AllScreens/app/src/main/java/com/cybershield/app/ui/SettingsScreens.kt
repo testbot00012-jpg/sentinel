@@ -1579,11 +1579,17 @@ fun SecurityLogsDetailScreen(nav: NavHostController, vm: MainSecurityViewModel) 
     val auditLogs by vm.securityAuditLogs.collectAsState()
 
     val filteredEvents = auditLogs.filter { entry ->
+        val isScanOnly = entry.type.equals("SCAN", ignoreCase = true) || entry.type.equals("THREAT", ignoreCase = true)
         val matchesQuery = searchQuery.isBlank() ||
                 entry.title.contains(searchQuery, ignoreCase = true) ||
                 entry.subtitle.contains(searchQuery, ignoreCase = true)
-        val matchesFilter = (filterType == "ALL") || entry.type.equals(filterType, ignoreCase = true)
-        matchesQuery && matchesFilter
+        val matchesFilter = when (filterType) {
+            "ALL" -> true
+            "THREAT" -> entry.type.equals("THREAT", ignoreCase = true)
+            "SCAN" -> entry.type.equals("SCAN", ignoreCase = true)
+            else -> true
+        }
+        isScanOnly && matchesQuery && matchesFilter
     }
 
     LazyColumn(
@@ -1594,7 +1600,7 @@ fun SecurityLogsDetailScreen(nav: NavHostController, vm: MainSecurityViewModel) 
         contentPadding = PaddingValues(bottom = 32.dp)
     ) {
         item {
-            DetailHeader(title = "Security logs", subtitle = "Real persistent audit trail of device defense events", nav = nav)
+            DetailHeader(title = "Security logs", subtitle = "Verified scan history for current account", nav = nav)
             Spacer(Modifier.height(12.dp))
         }
 
@@ -1607,7 +1613,7 @@ fun SecurityLogsDetailScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search audit events", color = Muted, fontSize = 12.sp) },
+                    placeholder = { Text("Search scan history", color = Muted, fontSize = 12.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp)) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Cyan,
@@ -1624,18 +1630,21 @@ fun SecurityLogsDetailScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                         filterType = when (filterType) {
                             "ALL" -> "THREAT"
                             "THREAT" -> "SCAN"
-                            "SCAN" -> "SESSION"
-                            "SESSION" -> "SETTINGS"
                             else -> "ALL"
                         }
-                        Toast.makeText(context, "Filter: $filterType", Toast.LENGTH_SHORT).show()
+                        val label = when (filterType) {
+                            "THREAT" -> "Threats only"
+                            "SCAN" -> "Passed scans only"
+                            else -> "All scans"
+                        }
+                        Toast.makeText(context, "Filter: $label", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F2636)),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, Cyan.copy(alpha = 0.5f)),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp)
                 ) {
-                    Text(if (filterType == "ALL") "FILTER" else filterType, color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (filterType == "ALL") "ALL SCANS" else if (filterType == "THREAT") "THREATS" else "PASSED", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -1643,7 +1652,7 @@ fun SecurityLogsDetailScreen(nav: NavHostController, vm: MainSecurityViewModel) 
 
         // Section Title
         item {
-            Text("Real-Time Event Stream (${filteredEvents.size})", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Verified Scan Stream (${filteredEvents.size})", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
         }
 
@@ -1661,8 +1670,8 @@ fun SecurityLogsDetailScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Emerald, modifier = Modifier.size(36.dp))
                         Spacer(Modifier.height(8.dp))
-                        Text("No Logs Match Criteria", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text("Perform a security scan or update settings to generate real audit logs.", color = Muted, fontSize = 12.sp)
+                        Text("No Scans Match Criteria", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Perform a security scan or sync scans to view verified records for this account.", color = Muted, fontSize = 12.sp)
                     }
                 }
             }
@@ -1723,10 +1732,10 @@ fun SecurityLogsDetailScreen(nav: NavHostController, vm: MainSecurityViewModel) 
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Export security log", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                    Text("Export scan history", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 13.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = { Toast.makeText(context, "Exporting audit log as PDF...", Toast.LENGTH_SHORT).show() },
+                            onClick = { Toast.makeText(context, "Exporting scan history as PDF...", Toast.LENGTH_SHORT).show() },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F2636)),
                             shape = RoundedCornerShape(8.dp),
                             border = BorderStroke(1.dp, Cyan.copy(alpha = 0.4f)),

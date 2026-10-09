@@ -2610,7 +2610,8 @@ private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel)
     val isAdbEnabled = remember(telemetry) { telemetry?.isAdbEnabled == true }
 
     val unresolvedCount = dangerApps.size + (if (isNetworkUnsecured) 1 else 0) + (if (isAdbEnabled) 1 else 0)
-    val resolvedLogs = remember(auditLogs) { auditLogs.take(6) }
+    val scanOnlyLogs = remember(auditLogs) { auditLogs.filter { it.type == "SCAN" || it.type == "THREAT" } }
+    val resolvedLogs = remember(scanOnlyLogs) { scanOnlyLogs.take(6) }
 
     LazyColumn(
         Modifier
@@ -2651,7 +2652,7 @@ private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel)
                     border = BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f))
                 ) {
                     Text(
-                        "${resolvedLogs.size} AUDIT EVENTS",
+                        "${resolvedLogs.size} SCAN EVENTS",
                         color = Color(0xFF00E676),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -2748,13 +2749,13 @@ private fun AlertCenterScreen(nav: NavHostController, vm: MainSecurityViewModel)
 
         // Recent Security Audit Events
         item {
-            Text("Recent security events", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Recent scan events", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(Modifier.height(10.dp))
         }
 
         if (resolvedLogs.isEmpty()) {
             item {
-                Text("No recent security events logged.", color = Muted, fontSize = 12.sp)
+                Text("No recent scans logged.", color = Muted, fontSize = 12.sp)
             }
         } else {
             items(resolvedLogs) { log ->

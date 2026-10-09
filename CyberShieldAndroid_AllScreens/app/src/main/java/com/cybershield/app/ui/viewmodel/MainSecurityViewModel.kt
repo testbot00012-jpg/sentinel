@@ -202,14 +202,15 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
             _isLoggedIn.value = true
             _currentUserEmail.value = savedEmail
             loadPersistedScanHistory(savedEmail)
+            loadPersistedAuditLogs(savedEmail)
         } else {
             apiClient.setAuthToken(null)
             _isLoggedIn.value = false
             _currentUserEmail.value = null
             _scanHistory.value = emptyList()
+            _securityAuditLogs.value = emptyList()
         }
 
-        loadPersistedAuditLogs()
         refreshTelemetry()
         refreshAccountActivities()
         refreshInspectedApps(true)
@@ -240,6 +241,8 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
     }
 
     suspend fun syncCloudScans() {
+        val currentEmail = currentUserEmail.value
+        if (currentEmail.isNullOrBlank()) return
         val res = apiClient.getScanHistory()
         res.onSuccess { cloudScans ->
             withContext(Dispatchers.Main) {
@@ -249,26 +252,47 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
 
                 if (newFromCloud.isNotEmpty() || (current.isEmpty() && cloudScans.isNotEmpty())) {
                     val mergedMap = mutableMapOf<String, SecurityResult>()
-                    // Cloud scans first (source of truth from Web & Cloud)
+                    // Cloud scans first (source of truth from Web & Cloud for this account)
                     cloudScans.forEach { mergedMap[it.scanId] = it }
                     // Preserve any local scans not yet in cloud
                     current.forEach { if (!mergedMap.containsKey(it.scanId)) mergedMap[it.scanId] = it }
 
                     val mergedList = mergedMap.values.toList()
                     _scanHistory.value = mergedList
-                    savePersistedScanHistory(mergedList)
+                    savePersistedScanHistory(mergedList, currentEmail)
 
                     if (_currentScanResult.value == null && mergedList.isNotEmpty()) {
                         _currentScanResult.value = mergedList.first()
                     }
 
-                    newFromCloud.firstOrNull()?.let { s ->
-                        recordSecurityAuditLog(
-                            "Cloud Scan Synced",
-                            "${s.scannerType}: ${s.rawInputReference ?: "Web Console inspection"}",
-                            "SYNC",
-                            0xFF31D7FF
-                        )
+                    // Directly sync each cloud scan into audit logs as a verified SCAN entry (never SYNC / SETTINGS)
+                    val existingAuditIds = _securityAuditLogs.value.map { it.id }.toSet()
+                    val newAudits = mutableListOf<SecurityAuditEntry>()
+                    cloudScans.forEach { s ->
+                        if (s.scanId !in existingAuditIds) {
+                            val isDanger = s.securityScore < 60 || s.riskLevel == RiskLevel.HIGH_RISK || s.riskLevel == RiskLevel.CRITICAL
+                            val targetName = s.rawInputReference ?: (s.quickSummary ?: s.explanation)
+                            val typeBadge = if (isDanger) "THREAT" else "SCAN"
+                            val colorHex = if (isDanger) 0xFFFF3B30 else 0xFF00E676
+                            val cleanType = s.scannerType.replace('_', ' ')
+                            val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(s.timestamp))
+                            newAudits.add(
+                                SecurityAuditEntry(
+                                    id = s.scanId,
+                                    timeFormatted = timeStr,
+                                    colorHex = colorHex,
+                                    title = "$cleanType: ${if (isDanger) "High-risk threat flagged" else "Audit passed"}",
+                                    subtitle = targetName.take(60),
+                                    type = typeBadge,
+                                    timestampMillis = s.timestamp
+                                )
+                            )
+                        }
+                    }
+                    if (newAudits.isNotEmpty()) {
+                        val updatedAudit = (newAudits + _securityAuditLogs.value).distinctBy { it.id }
+                        _securityAuditLogs.value = updatedAudit
+                        savePersistedAuditLogs(updatedAudit, currentEmail)
                     }
                 }
             }
@@ -315,56 +339,78 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         } catch (_: Exception) {}
     }
 
-    private fun loadPersistedAuditLogs() {
+    private fun getAuditPrefKey(email: String? = currentUserEmail.value): String {
+        val clean = email?.trim()?.lowercase()
+        return if (!clean.isNullOrBlank()) "saved_audits_json_${clean}" else "saved_audits_json_guest"
+    }
+
+    private fun loadPersistedAuditLogs(email: String? = currentUserEmail.value) {
         try {
-            val jsonStr = auditPrefs.getString("saved_audits_json", null)
+            // Remove legacy unpartitioned key so mixed account logs are eradicated
+            if (auditPrefs.contains("saved_audits_json")) {
+                auditPrefs.edit().remove("saved_audits_json").apply()
+            }
+            val key = getAuditPrefKey(email)
+            val jsonStr = auditPrefs.getString(key, null)
             if (!jsonStr.isNullOrBlank()) {
                 val array = JSONArray(jsonStr)
                 val list = mutableListOf<SecurityAuditEntry>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
-                    list.add(
-                        SecurityAuditEntry(
-                            id = obj.optString("id", UUID.randomUUID().toString()),
-                            timeFormatted = obj.optString("time", "Now"),
-                            colorHex = obj.optLong("color", 0xFF00E676),
-                            title = obj.optString("title", "Event"),
-                            subtitle = obj.optString("subtitle", ""),
-                            type = obj.optString("type", "SCAN"),
-                            timestampMillis = obj.optLong("timestamp", System.currentTimeMillis())
+                    val type = obj.optString("type", "SCAN")
+                    // Strictly only include real scans (SCAN or THREAT), skip any older SETTINGS/SESSION noise
+                    if (type == "SCAN" || type == "THREAT") {
+                        list.add(
+                            SecurityAuditEntry(
+                                id = obj.optString("id", UUID.randomUUID().toString()),
+                                timeFormatted = obj.optString("time", "Now"),
+                                colorHex = obj.optLong("color", 0xFF00E676),
+                                title = obj.optString("title", "Event"),
+                                subtitle = obj.optString("subtitle", ""),
+                                type = type,
+                                timestampMillis = obj.optLong("timestamp", System.currentTimeMillis())
+                            )
                         )
-                    )
+                    }
                 }
                 _securityAuditLogs.value = list
             } else {
-                // Initial real telemetry events
-                val nowTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-                val initial = listOf(
-                    SecurityAuditEntry(
-                        timeFormatted = nowTime,
-                        colorHex = 0xFF00E676,
-                        title = "OS Security Baseline Verified",
-                        subtitle = "Hardware encryption & SELinux enforcing",
-                        type = "SCAN"
-                    ),
-                    SecurityAuditEntry(
-                        timeFormatted = nowTime,
-                        colorHex = 0xFF31D7FF,
-                        title = "Sentinel AI Core Initialized",
-                        subtitle = "Real-time threat monitoring active",
-                        type = "SESSION"
-                    )
-                )
-                _securityAuditLogs.value = initial
-                savePersistedAuditLogs(initial)
+                _securityAuditLogs.value = emptyList()
             }
-        } catch (_: Exception) {}
+
+            // If empty but this account already has scans in _scanHistory, generate clean audit entries from them
+            if (_securityAuditLogs.value.isEmpty() && _scanHistory.value.isNotEmpty()) {
+                val generated = _scanHistory.value.map { s ->
+                    val isDanger = s.securityScore < 60 || s.riskLevel == RiskLevel.HIGH_RISK || s.riskLevel == RiskLevel.CRITICAL
+                    val targetName = s.rawInputReference ?: (s.quickSummary ?: s.explanation)
+                    val typeBadge = if (isDanger) "THREAT" else "SCAN"
+                    val colorHex = if (isDanger) 0xFFFF3B30 else 0xFF00E676
+                    val cleanType = s.scannerType.replace('_', ' ')
+                    val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(s.timestamp))
+                    SecurityAuditEntry(
+                        id = s.scanId,
+                        timeFormatted = timeStr,
+                        colorHex = colorHex,
+                        title = "$cleanType: ${if (isDanger) "High-risk threat flagged" else "Audit passed"}",
+                        subtitle = targetName.take(60),
+                        type = typeBadge,
+                        timestampMillis = s.timestamp
+                    )
+                }
+                _securityAuditLogs.value = generated
+                savePersistedAuditLogs(generated, email)
+            }
+        } catch (_: Exception) {
+            _securityAuditLogs.value = emptyList()
+        }
     }
 
-    private fun savePersistedAuditLogs(list: List<SecurityAuditEntry>) {
+    private fun savePersistedAuditLogs(list: List<SecurityAuditEntry>, email: String? = currentUserEmail.value) {
         try {
+            val key = getAuditPrefKey(email)
             val array = JSONArray()
-            list.take(100).forEach { item ->
+            // Strictly only persist real scans (SCAN or THREAT)
+            list.filter { it.type == "SCAN" || it.type == "THREAT" }.take(100).forEach { item ->
                 val obj = JSONObject()
                 obj.put("id", item.id)
                 obj.put("time", item.timeFormatted)
@@ -375,11 +421,13 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                 obj.put("timestamp", item.timestampMillis)
                 array.put(obj)
             }
-            auditPrefs.edit().putString("saved_audits_json", array.toString()).apply()
+            auditPrefs.edit().putString(key, array.toString()).apply()
         } catch (_: Exception) {}
     }
 
     fun recordSecurityAuditLog(title: String, subtitle: String, type: String, colorHex: Long) {
+        // Enforce scan-only: ignore any non-scan logging
+        if (type != "SCAN" && type != "THREAT") return
         val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
         val entry = SecurityAuditEntry(
             timeFormatted = timeStr,
@@ -390,27 +438,35 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         )
         val updated = listOf(entry) + _securityAuditLogs.value
         _securityAuditLogs.value = updated
-        savePersistedAuditLogs(updated)
+        savePersistedAuditLogs(updated, _currentUserEmail.value)
     }
 
     fun addScanResult(result: SecurityResult) {
+        val currentEmail = currentUserEmail.value
         _currentScanResult.value = result
         val updated = listOf(result) + _scanHistory.value.filter { it.scanId != result.scanId }
         _scanHistory.value = updated
-        savePersistedScanHistory(updated)
+        savePersistedScanHistory(updated, currentEmail)
 
-        val isDanger = result.securityScore < 60
+        val isDanger = result.securityScore < 60 || result.riskLevel == RiskLevel.HIGH_RISK || result.riskLevel == RiskLevel.CRITICAL
         val targetName = result.rawInputReference ?: (result.quickSummary ?: result.explanation)
         val typeBadge = if (isDanger) "THREAT" else "SCAN"
         val colorHex = if (isDanger) 0xFFFF3B30 else 0xFF00E676
         val cleanType = result.scannerType.replace('_', ' ')
+        val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(result.timestamp))
 
-        recordSecurityAuditLog(
+        val entry = SecurityAuditEntry(
+            id = result.scanId,
+            timeFormatted = timeStr,
+            colorHex = colorHex,
             title = "$cleanType: ${if (isDanger) "High-risk threat flagged" else "Audit passed"}",
             subtitle = targetName.take(60),
             type = typeBadge,
-            colorHex = colorHex
+            timestampMillis = result.timestamp
         )
+        val updatedAudit = listOf(entry) + _securityAuditLogs.value.filter { it.id != result.scanId }
+        _securityAuditLogs.value = updatedAudit
+        savePersistedAuditLogs(updatedAudit, currentEmail)
 
         // Real-time synchronization to Cloud Backend & Web Console
         viewModelScope.launch(Dispatchers.IO) {
@@ -508,29 +564,20 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
         val ok = deviceRepository.clearAppCache()
         refreshStorageInfo()
         refreshStorageFileScans()
-        recordSecurityAuditLog(
-            title = "Cache Purged",
-            subtitle = "Local temporary files cleared",
-            type = "SCAN",
-            colorHex = 0xFF31D7FF
-        )
         onResult(ok)
     }
 
     fun revokeSession(sessionId: String) {
         trustedSessions.value = trustedSessions.value.filter { it.id != sessionId }
-        recordSecurityAuditLog("Remote Session Terminated", "Session ID: $sessionId revoked", "SESSION", 0xFFFF9800)
     }
 
     fun revokeAllSessions() {
         trustedSessions.value = emptyList()
-        recordSecurityAuditLog("All Remote Sessions Terminated", "Signed out other devices", "SESSION", 0xFFFF3B30)
     }
 
     fun setLanguage(lang: String) {
         currentLanguage.value = lang
         settingsPrefs.edit().putString("current_language", lang).apply()
-        recordSecurityAuditLog("Language Preference Changed", "Locale updated to $lang", "SETTINGS", 0xFF31D7FF)
     }
 
     fun logout(onComplete: () -> Unit = {}) {
@@ -544,9 +591,9 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
             _isLoggedIn.value = false
             _currentUserEmail.value = null
             _scanHistory.value = emptyList()
+            _securityAuditLogs.value = emptyList()
             _currentScanResult.value = null
             _accountActivities.value = emptyList()
-            recordSecurityAuditLog("User Signed Out", "Account credentials cleared from session", "SESSION", 0xFFFF9800)
             onComplete()
         }
     }
@@ -567,16 +614,15 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                     _isLoggedIn.value = true
                     _currentUserEmail.value = cleanEmail
                     _authStatus.value = null
-                    // Load this particular account's scan history immediately
+                    // Load this particular account's scan history and audit logs immediately
                     loadPersistedScanHistory(cleanEmail)
-                    recordSecurityAuditLog("User Authentication Successful", "Token generated for $cleanEmail", "SESSION", 0xFF00E676)
+                    loadPersistedAuditLogs(cleanEmail)
                     refreshAccountActivities()
                     launch(Dispatchers.IO) { syncCloudScans() }
                     onResult(true, "Authentication successful")
                 },
                 onFailure = { err ->
                     _authStatus.value = err.message
-                    recordSecurityAuditLog("Authentication Failed", "Attempt rejected: ${err.message}", "THREAT", 0xFFFF3B30)
                     onResult(false, err.message ?: "Authentication failed")
                 }
             )
@@ -599,9 +645,9 @@ class MainSecurityViewModel(application: Application) : AndroidViewModel(applica
                     _isLoggedIn.value = true
                     _currentUserEmail.value = cleanEmail
                     _authStatus.value = null
-                    // Initialize empty history for newly registered account
+                    // Initialize empty history and audit logs for newly registered account
                     loadPersistedScanHistory(cleanEmail)
-                    recordSecurityAuditLog("New User Registered", "Account initialized for $cleanEmail", "SESSION", 0xFF00E676)
+                    loadPersistedAuditLogs(cleanEmail)
                     refreshAccountActivities()
                     launch(Dispatchers.IO) { syncCloudScans() }
                     onResult(true, "Registration successful")
